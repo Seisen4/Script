@@ -121,6 +121,8 @@ local autoCursedProgressionUpgradeEnabled = false
 local autoRollCursesEnabled = false
 local autoObeliskEnabled = false
 local fpsBoostEnabled = false
+local autoReAwakeningProgressionUpgradeEnabled = false
+local autoMonarchProgressionUpgradeEnabled = false
 local selectedObeliskType = "Slayer_Obelisk"
 local selectedDungeons = config.SelectedDungeons or {"Dungeon_Easy"}
 local autoRollDemonArtsEnabled = false
@@ -209,6 +211,8 @@ autoCursedProgressionUpgradeEnabled = config.AutoCursedProgressionUpgradeToggle 
 autoRollCursesEnabled = config.AutoRollCursesToggle or false
 autoObeliskEnabled = config.AutoObeliskToggle or false
 selectedObeliskType = config.SelectedObeliskType or "Slayer_Obelisk"
+autoReAwakeningProgressionUpgradeEnabled = config.AutoReAwakeningProgressionUpgradeToggle or false
+autoMonarchProgressionUpgradeEnabled = config.AutoMonarchProgressionUpgradeToggle or false
 fpsBoostEnabled = config.FPSBoostToggle or false
 autoRollDemonArtsEnabled = config.AutoRollDemonArtsToggle or false
 autoRollSoloHunterRankEnabled = config.AutoRollSoloHunterRankToggle or false
@@ -1286,6 +1290,70 @@ function startAutoCursedProgressionUpgrade()
     end)
 end
 
+function startAutoReAwakeningProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock ReAwakening Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "ReAwakening_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            ToServer:FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoReAwakeningProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "ReAwakening",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "ReAwakening_Progression",
+                }
+            }
+            pcall(function()
+                ToServer:FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
+function startAutoMonarchProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock Monarch Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Monarch_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoMonarchProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "Monarch",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "Monarch_Progression",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
 local function startAutoRollCurses()
     task.spawn(function()
         -- Unlock Curses first (only once)
@@ -1624,6 +1692,8 @@ if disableNotificationsEnabled then applyNotificationsState() end
 if mutePetSoundsEnabled then applyMutePetSoundsState() end
 if autoRollZanpakutoEnabled then startAutoRollZanpakuto() end
 if autoCursedProgressionUpgradeEnabled then startAutoCursedProgressionUpgrade() end
+if autoReAwakeningProgressionUpgradeEnabled then startAutoReAwakeningProgressionUpgrade() end
+if autoMonarchProgressionUpgradeEnabled then startAutoMonarchProgressionUpgrade() end
 if autoRollCursesEnabled then startAutoRollCurses() end
 if autoObeliskEnabled then startAutoObelisk() end
 if autoRollDemonArtsEnabled then startAutoRollDemonArts() end
@@ -2278,6 +2348,28 @@ Upgrade2:AddToggle("AutoCursedProgressionUpgradeToggle", {
     end
 })
 
+Upgrade2:AddToggle("AutoReAwakeningProgressionUpgradeToggle", {
+    Text = "Auto ReAwakening Progression Upgrade",
+    Default = autoReAwakeningProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoReAwakeningProgressionUpgradeEnabled = Value
+        config.AutoReAwakeningProgressionUpgradeToggle = Value
+        if Value then startAutoReAwakeningProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
+Upgrade2:AddToggle("AutoMonarchProgressionUpgradeToggle", {
+    Text = "Auto Monarch Progression Upgrade",
+    Default = autoMonarchProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoMonarchProgressionUpgradeEnabled = Value
+        config.AutoMonarchProgressionUpgradeToggle = Value
+        if Value then startAutoMonarchProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
 -- Disable Sound
 UnloadGroupbox:AddToggle("MutePetSoundsToggle", {
     Text = "Mute Pet Sounds",
@@ -2361,6 +2453,8 @@ UnloadGroupbox:AddButton("Unload Seisen Hub", function()
     selectedStat = false
     autoRollZanpakutoEnabledfalse = false
     autoCursedProgressionUpgradeEnabled = false
+    autoReAwakeningProgressionUpgradeEnabled = false
+    autoMonarchProgressionUpgradeEnabled = false
     autoRollCursesEnabled = false
     autoObeliskEnabled = false
     selectedObeliskType = false
