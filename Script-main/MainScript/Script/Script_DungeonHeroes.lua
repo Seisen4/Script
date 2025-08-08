@@ -1269,6 +1269,7 @@ local Window = Library:CreateWindow({
     MobileButtonsSide = "Right"
 })
 
+
 local MainTab = Window:AddTab("Main", "box")
 local DungeonTab = Window:AddTab("Dungeon", "swords")
 local SettingsTab = Window:AddTab("UI Settings", "settings")
@@ -1419,7 +1420,9 @@ trackTask(task.spawn(function()
     local miniBossNoclipConnection = nil
     
     local miniBossList = {
-        "Ursolare", "Okurio", "Sea Serpent", "Melchior"
+        "Ursolare", "Okurio", "Sea Serpent", "Melchior", 
+        "Baboon King", "Caelficus", "Abu'hol", "Pela'Eus",
+        "Lord Yew", "Aldrazir"
     }
 
     while true do
@@ -1796,7 +1799,6 @@ local AutoEquipHighestWeaponToggle = FeaturesBox:AddToggle("AutoEquipHighestWeap
         autoEquipHighestWeapon = Value
         config.autoEquipHighestWeapon = Value
         saveConfig()
-        Library:Notify({Title = "Auto Equip Highest Weapon", Description = Value and "Enabled" or "Disabled", Time = 2})
     end
 })
 
@@ -1833,6 +1835,30 @@ trackTask(task.spawn(function()
                     itemsModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Items", 9e9))
                 end)
 
+                -- Helper to get player level
+                local function getPlayerLevel()
+                    local playerLevel = 1
+                    pcall(function()
+                        playerLevel = profile.Level.Value or 1
+                    end)
+                    return playerLevel
+                end
+
+                -- Helper to check if item can be equipped by player level
+                local function canEquipItem(item)
+                    if not item or not itemsModule then return false end
+                    local itemData = nil
+                    pcall(function()
+                        itemData = itemsModule:GetItemData(item.Name)
+                    end)
+                    if not itemData then return false end
+                    
+                    local requiredLevel = itemData.Level or 1
+                    local playerLevel = getPlayerLevel()
+                    
+                    return playerLevel >= requiredLevel
+                end
+
                 -- Helper to calculate item power with level priority
                 local function getItemPower(item, showDebug)
                     if not item or not itemsModule then return -math.huge, "No item or module" end
@@ -1868,6 +1894,13 @@ trackTask(task.spawn(function()
                     return nil, -math.huge, "None"
                 end
 
+                -- Helper to check if weapon is physical/attack type (not magic)
+                local function isPhysicalWeapon(weaponType)
+                    if not weaponType then return false end
+                    local physicalWeapons = {["Sword"] = true, ["Greatsword"] = true, ["Spear"] = true, ["Scythe"] = true}
+                    return physicalWeapons[weaponType] == true
+                end
+
                 local function findBestInInventory(category, typeName, equippedItem)
                     local bestItem = nil
                     local bestPower = -math.huge
@@ -1880,11 +1913,21 @@ trackTask(task.spawn(function()
                                 itemData = itemsModule:GetItemData(item.Name)
                             end)
                             if itemData and itemData.Category == category and (not typeName or itemData.Type == typeName) then
-                                local power, info = getItemPower(item, false)
-                                if power > bestPower then
-                                    bestPower = power
-                                    bestItem = item
-                                    bestInfo = info
+                                -- For weapons, only allow physical/attack weapons (no magic)
+                                if category == "Weapon" then
+                                    if not isPhysicalWeapon(itemData.Type) then
+                                        continue -- Skip magic weapons completely
+                                    end
+                                end
+                                
+                                -- Check if player can equip this item (level requirement)
+                                if canEquipItem(item) then
+                                    local power, info = getItemPower(item, false)
+                                    if power > bestPower then
+                                        bestPower = power
+                                        bestItem = item
+                                        bestInfo = info
+                                    end
                                 end
                             end
                         end
@@ -1902,12 +1945,6 @@ trackTask(task.spawn(function()
                             :WaitForChild("Equip", 9e9)
                             :FireServer("Right", item)
                     end)
-                    Library:Notify({
-                        Title = "Auto Equip Weapon", 
-                        Description = string.format("Upgraded: %s → %s (%s)", 
-                            equippedInfo, item.Name or "Unknown", newInfo),
-                        Time = 4
-                    })
                 end
 
                 local function equipArmor(item, equippedInfo, newInfo)
@@ -1920,12 +1957,6 @@ trackTask(task.spawn(function()
                             :WaitForChild("EquipArmor", 9e9)
                             :FireServer(item)
                     end)
-                    Library:Notify({
-                        Title = "Auto Equip Armor", 
-                        Description = string.format("Upgraded: %s → %s (%s)", 
-                            equippedInfo, item.Name or "Unknown", newInfo),
-                        Time = 4
-                    })
                 end
 
                 local equippedWeapon, equippedWeaponPower, equippedWeaponInfo = getEquippedItemAndPower("Right")
@@ -2068,7 +2099,7 @@ local normalDungeonNameMap = {
     ["Flaming Depths lvl 45+"] = "CastleDungeon",
     ["Mosscrown Jungle lvl 60+"] = "JungleDungeon",
     ["Astral Abyss lvl 75+"] = "AstralDungeon",
-    ["Shifting Sands lvl 90+"] = "VolcanoDungeon",
+    ["Shifting Sands lvl 90+"] = "DesertDungeon",
     ["Shimmering Caves lvl 105+"] = "CaveDungeon",
     ["Mushroom Forest lvl 120+"] = "MushroomDungeon",
     ["Golden ream lvl 135+"] = "GoldDungeon"
@@ -2732,6 +2763,18 @@ local function performCompleteCleanup()
     end
 end
 
+-- Add Auto Hide UI toggle
+local AutoHideToggle = ThemeTab:AddToggle("AutoHide", {
+    Text = "Auto Hide UI",
+    Default = config.autoHideUI or false,
+    Tooltip = "Automatically hides the UI when script is executed",
+    Callback = function(Value)
+        config.autoHideUI = Value
+        saveConfig()
+        Library:Notify({Title = "Auto Hide UI", Description = Value and "Enabled" or "Disabled", Time = 2})
+    end
+})
+
 -- Move Unload UI button to ThemeTab in Settings
 ThemeTab:AddButton({
     Text = "Unload UI",
@@ -3002,7 +3045,7 @@ trackTask(task.spawn(function()
                 [2] = entry.difficulty,
                 [3] = 1,
                 [4] = false,
-                [5] = true
+                [5] = false
             }
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Parties", 9e9):WaitForChild("SetSettings", 9e9):FireServer(unpack(args))
@@ -3057,4 +3100,9 @@ AutoFarmHeightSlider:SetValue(config.autoFarmHeight or autoFarmHeight)
 AutoSellToggle:SetValue(config.autoSellEnabled)
 AutoSellRarityDropdown:SetValue(config.autoSellRarity or selectedRarity)
 CustomCursorToggle:SetValue(config.customCursorEnabled)
+AutoHideToggle:SetValue(config.autoHideUI or false)
 
+-- Auto hide UI if enabled
+if config.autoHideUI then
+    Library:Toggle(false)
+end
