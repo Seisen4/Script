@@ -17,7 +17,7 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deivi
 local Window = Library:CreateWindow({
     Title = "Seisen Hub",
     Footer = "Anime Eternal",
-    ToggleKeybind = Enum.KeyCode.RightControl,
+    ToggleKeybind = Enum.KeyCode.LeftAlt,
     Center = true,
     AutoShow = true,
     MobileButtonsSide = "Left"
@@ -480,7 +480,7 @@ local function startAutoQuests()
                 pcall(function()
                     ToServer:FireServer(unpack(argsAccept))
                 end)
-                task.wait(0.05)
+                task.wait(0.2)
                 local argsComplete = {
                     [1] = {
                         ["Id"] = tostring(questId),
@@ -491,7 +491,7 @@ local function startAutoQuests()
                 pcall(function()
                     ToServer:FireServer(unpack(argsComplete))
                 end)
-                task.wait(0.05)
+                task.wait(0.2)
             end
             task.wait(2)
         end
@@ -938,10 +938,11 @@ local function startAutoUpgrade()
                             }
                         }
                         ToServer:FireServer(unpack(args))
+                        task.wait(0.1) -- Small delay between each upgrade
                     end
                 end
             end)
-            task.wait(0.5)
+            task.wait(1.5) -- Increased main delay
         end
     end)
 end
@@ -1406,9 +1407,9 @@ function startAutoObelisk()
                         Upgrade_Name = obeliskType
                     })
                 end)
-                task.wait(0.2)
+                task.wait(0.5) -- Increased delay between obelisk upgrades
             end
-            task.wait(1)
+            task.wait(2) -- Increased main loop delay
         end
     end)
 end
@@ -1616,7 +1617,7 @@ local redeemCodes = {
     "Refresh", "175KFAV", "Update6", "5MVisits", "6MVisits", "190KFAV", "Update5Part2", "45KLIKES", "140KFAV",
     "160KFAV", "4MVisits", "SorryForShutdown3", "SomeBugFix1", "40KLikes", "Update5Part1", "30KLIKES", "125KFAV",
     "7KPlayers", "35KLIKES", "SorryForShutdown2", "SorryForSouls", "3MVISITS", "SorryForDelay2", "60KFav", "75KFav",
-    "2MVisits", "Update3Part2", "20KLikes", "SorryForDelay1", "6KPlayers", "Update4", "25KLIKES", "100KFAV", "RefreshCode"
+    "2MVisits", "Update3Part2", "20KLikes", "SorryForDelay1", "6KPlayers", "Update4", "25KLIKES", "100KFAV"
 }
 
 local function redeemAllCodes()
@@ -1652,6 +1653,7 @@ function startAutoDeleteGacha()
                     pcall(function()
                         game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(args))
                     end)
+                    task.wait(0.1) -- Small delay between gacha deletions
                 end
             end
             task.wait(2)
@@ -1866,8 +1868,8 @@ local placeToStar = {
     ["Spirit Residence"] = "Star_9",
     ["Magic_Hunter_City"] = "Star_10",
     ["Titan Village"] = "Star_11",
-    ["Village of Sins"] = "Star_12",
-    ["Kaiju Base"] = "Star_13"
+    ["Villageof Sins"] = "Star_12",
+    ["Dungeon Lobby 1"] = "Star_13"
 }
 local starToPlace = {}
 for place, star in pairs(placeToStar) do
@@ -2587,6 +2589,3 @@ task.defer(function()
         end
     end
 end)
-
-
-
