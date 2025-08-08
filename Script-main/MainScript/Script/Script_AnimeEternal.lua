@@ -123,6 +123,9 @@ local autoObeliskEnabled = false
 local fpsBoostEnabled = false
 local autoReAwakeningProgressionUpgradeEnabled = false
 local autoMonarchProgressionUpgradeEnabled = false
+local autoWaterSpiritProgressionUpgradeEnabled = false
+local autoWindSpiritProgressionUpgradeEnabled = false
+local autoFireSpiritProgressionUpgradeEnabled = false
 local selectedObeliskType = "Slayer_Obelisk"
 local selectedDungeons = config.SelectedDungeons or {"Dungeon_Easy"}
 local autoRollDemonArtsEnabled = false
@@ -213,9 +216,13 @@ autoObeliskEnabled = config.AutoObeliskToggle or false
 selectedObeliskType = config.SelectedObeliskType or "Slayer_Obelisk"
 autoReAwakeningProgressionUpgradeEnabled = config.AutoReAwakeningProgressionUpgradeToggle or false
 autoMonarchProgressionUpgradeEnabled = config.AutoMonarchProgressionUpgradeToggle or false
+autoWaterSpiritProgressionUpgradeEnabled = config.AutoWaterSpiritProgressionUpgradeToggle or false
+autoWindSpiritProgressionUpgradeEnabled = config.AutoWindSpiritProgressionUpgradeToggle or false
+autoFireSpiritProgressionUpgradeEnabled = config.AutoFireSpiritProgressionUpgradeToggle or false
 fpsBoostEnabled = config.FPSBoostToggle or false
 autoRollDemonArtsEnabled = config.AutoRollDemonArtsToggle or false
 autoRollSoloHunterRankEnabled = config.AutoRollSoloHunterRankToggle or false
+autoRollGrimoireEnabled = config.AutoRollGrimoireToggle or false
 selectedGachaRarities = config.AutoDeleteGachaRaritiesDropdown or {}
 
 -- Helper to save config
@@ -230,6 +237,9 @@ local function saveConfig()
     config.AutoRollReiatsuColorToggle = autoRollReiatsuColorEnabled
     config.FPSBoostToggle = fpsBoostEnabled
     config.AutoRollDemonArtsToggle = autoRollDemonArtsEnabled
+    config.AutoWaterSpiritProgressionUpgradeToggle = autoWaterSpiritProgressionUpgradeEnabled
+    config.AutoWindSpiritProgressionUpgradeToggle = autoWindSpiritProgressionUpgradeEnabled
+    config.AutoFireSpiritProgressionUpgradeToggle = autoFireSpiritProgressionUpgradeEnabled
     getgenv().SeisenHubConfig = config
     writefile(configFile, HttpService:JSONEncode(config))
 end
@@ -1355,6 +1365,102 @@ function startAutoMonarchProgressionUpgrade()
     end)
 end
 
+function startAutoWaterSpiritProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock Water Spirit Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Water_Spirit_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoWaterSpiritProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "Water_Spirit",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "Water_Spirit_Progression",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
+function startAutoWindSpiritProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock Wind Spirit Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Wind_Spirit_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoWindSpiritProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "Wind_Spirit",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "Wind_Spirit_Progression",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
+function startAutoFireSpiritProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock Fire Spirit Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Fire_Spirit_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoFireSpiritProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "Fire_Spirit",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "Fire_Spirit_Progression",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
 local function startAutoRollCurses()
     task.spawn(function()
         -- Unlock Curses first (only once)
@@ -1607,6 +1713,38 @@ local function startAutoRollSoloHunterRank()
     end)
 end
 
+local function startAutoRollGrimoire()
+    task.spawn(function()
+        -- Unlock Grimoire first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Grimoire_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep rolling while enabled
+        while autoRollGrimoireEnabled and getgenv().SeisenHubRunning do
+            local rollArgs = {
+                [1] = {
+                    ["Open_Amount"] = 1,
+                    ["Action"] = "_Gacha_Activate",
+                    ["Name"] = "Grimoire",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(rollArgs))
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
 
 
 local redeemCodes = {
@@ -1696,10 +1834,14 @@ if autoRollZanpakutoEnabled then startAutoRollZanpakuto() end
 if autoCursedProgressionUpgradeEnabled then startAutoCursedProgressionUpgrade() end
 if autoReAwakeningProgressionUpgradeEnabled then startAutoReAwakeningProgressionUpgrade() end
 if autoMonarchProgressionUpgradeEnabled then startAutoMonarchProgressionUpgrade() end
+if autoWaterSpiritProgressionUpgradeEnabled then startAutoWaterSpiritProgressionUpgrade() end
+if autoWindSpiritProgressionUpgradeEnabled then startAutoWindSpiritProgressionUpgrade() end
+if autoFireSpiritProgressionUpgradeEnabled then startAutoFireSpiritProgressionUpgrade() end
 if autoRollCursesEnabled then startAutoRollCurses() end
 if autoObeliskEnabled then startAutoObelisk() end
 if autoRollDemonArtsEnabled then startAutoRollDemonArts() end
 if autoRollSoloHunterRankEnabled then startAutoRollSoloHunterRank() end
+if autoRollGrimoireEnabled then startAutoRollGrimoire() end
 if fpsBoostEnabled then applyFPSBoostState() end
 if config.AutoDeleteGachaUnitsToggle then startAutoDeleteGacha() end
 
@@ -1989,6 +2131,17 @@ RollGroupbox2:AddToggle("AutoRollSoloHunterRankToggle", {
         autoRollSoloHunterRankEnabled = Value
         config.AutoRollSoloHunterRankToggle = Value
         if Value then startAutoRollSoloHunterRank() end
+        saveConfig()
+    end
+})
+
+RollGroupbox2:AddToggle("AutoRollGrimoireToggle", {
+    Text = "Auto Roll Grimoire",
+    Default = autoRollGrimoireEnabled,
+    Callback = function(Value)
+        autoRollGrimoireEnabled = Value
+        config.AutoRollGrimoireToggle = Value
+        if Value then startAutoRollGrimoire() end
         saveConfig()
     end
 })
@@ -2372,6 +2525,39 @@ Upgrade2:AddToggle("AutoMonarchProgressionUpgradeToggle", {
     end
 })
 
+Upgrade2:AddToggle("AutoWaterSpiritProgressionUpgradeToggle", {
+    Text = "Auto Water Spirit Progression Upgrade",
+    Default = autoWaterSpiritProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoWaterSpiritProgressionUpgradeEnabled = Value
+        config.AutoWaterSpiritProgressionUpgradeToggle = Value
+        if Value then startAutoWaterSpiritProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
+Upgrade2:AddToggle("AutoWindSpiritProgressionUpgradeToggle", {
+    Text = "Auto Wind Spirit Progression Upgrade",
+    Default = autoWindSpiritProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoWindSpiritProgressionUpgradeEnabled = Value
+        config.AutoWindSpiritProgressionUpgradeToggle = Value
+        if Value then startAutoWindSpiritProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
+Upgrade2:AddToggle("AutoFireSpiritProgressionUpgradeToggle", {
+    Text = "Auto Fire Spirit Progression Upgrade",
+    Default = autoFireSpiritProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoFireSpiritProgressionUpgradeEnabled = Value
+        config.AutoFireSpiritProgressionUpgradeToggle = Value
+        if Value then startAutoFireSpiritProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
 -- Disable Sound
 UnloadGroupbox:AddToggle("MutePetSoundsToggle", {
     Text = "Mute Pet Sounds",
@@ -2452,12 +2638,16 @@ UnloadGroupbox:AddButton("Unload Seisen Hub", function()
     autoCursedProgressionUpgradeEnabled = false
     autoReAwakeningProgressionUpgradeEnabled = false
     autoMonarchProgressionUpgradeEnabled = false
+    autoWaterSpiritProgressionUpgradeEnabled = false
+    autoWindSpiritProgressionUpgradeEnabled = false
+    autoFireSpiritProgressionUpgradeEnabled = false
     autoRollCursesEnabled = false
     autoObeliskEnabled = false
     selectedObeliskType = false
     selectedGachaRarities = false
     autoRollDemonArtsEnabled = false
     autoRollSoloHunterRankEnabled = false
+    autoRollGrimoireEnabled = false
 
     
     local argsOff = {
