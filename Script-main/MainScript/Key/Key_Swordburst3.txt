@@ -8,12 +8,19 @@ local RbxAnalyticsService = game:GetService("RbxAnalyticsService")
 local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 
---// Webhook URL
+--// Webhook URLs
 local WEBHOOK_URL = "https://discord.com/api/webhooks/1401568771679846541/6ojRCXUGtbL6XKD7DeKXM5VyBzuAjPGKVn_1gO0FD-8hWaVTjcRBRP21iylNuEXhnJzz"
+local EXECUTOR_BAN_WEBHOOK = "https://discord.com/api/webhooks/1403466575524139029/khhuuzR-uLVp8j8FydDzXtuWgoDHB0lt_EMk_9MsEGV5USktOQqGFjc782gI1DAeIU8U"
 
 --// HWID Ban System
 local BANNED_HWIDS = {
 		"dcf114ca-b099-4da8-8a93-2f1654ea6baa"
+}
+
+--// Executor Ban System
+local BANNED_EXECUTORS = {
+	"Solara",
+	"Xeno"
 }
 
 -- Config
@@ -71,6 +78,43 @@ local function getDiscordStatus(userId)
         status = "Connected"
     end
     return status
+end
+
+--// Executor Detection Function
+local function getExecutorName()
+	-- Check for Solara
+	if getgenv and getgenv().Solara or _G.Solara or identifyexecutor and identifyexecutor():lower():find("solara") then
+		return "Solara"
+	end
+	
+	-- Check for Xeno
+	if getgenv and getgenv().Xeno or _G.Xeno or identifyexecutor and identifyexecutor():lower():find("xeno") then
+		return "Xeno"
+	end
+	
+	-- Try to identify executor
+	if identifyexecutor then
+		local executor = identifyexecutor()
+		if type(executor) == "string" then
+			return executor
+		end
+	end
+	
+	return "Unknown"
+end
+
+--// Executor Ban Check Function
+local function isExecutorBanned()
+	local currentExecutor = getExecutorName()
+	
+	-- Check if current executor is in banned list
+	for _, bannedExecutor in pairs(BANNED_EXECUTORS) do
+		if currentExecutor:lower():find(bannedExecutor:lower()) then
+			return true, bannedExecutor, currentExecutor
+		end
+	end
+	
+	return false, nil, currentExecutor
 end
 
 --// HWID Ban Check Function
@@ -165,6 +209,88 @@ local function checkHWIDBan()
 	end
 	
 	return false -- User is not banned
+end
+
+--// Executor Ban Check (Run before UI)
+local function checkExecutorBan()
+	local isBanned, bannedExecutor, currentExecutor = isExecutorBanned()
+	
+	if isBanned then
+		-- Send executor ban notification to webhook
+		local banPayload = {
+			["username"] = "Executor Ban System",
+			["embeds"] = { {
+				["title"] = "⚠️ Unsupported Executor Detected",
+				["color"] = 16711680, -- Red
+				["fields"] = {
+					{ ["name"] = "👤 Player name", ["value"] = LocalPlayer.Name, ["inline"] = true },
+					{ ["name"] = "🆔 UserId", ["value"] = tostring(LocalPlayer.UserId), ["inline"] = true },
+					{ ["name"] = "🧾 HWID / Device ID", ["value"] = getHWID(), ["inline"] = false },
+					{ ["name"] = "⚠️ Banned Executor", ["value"] = bannedExecutor, ["inline"] = true },
+					{ ["name"] = "🔧 Detected Executor", ["value"] = currentExecutor, ["inline"] = true },
+					{ ["name"] = "🚫 Access Denied", ["value"] = "User tried to use unsupported executor", ["inline"] = false },
+					{ ["name"] = "🗺️ Game name", ["value"] = getGameName(), ["inline"] = true },
+					{ ["name"] = "📍 PlaceId", ["value"] = tostring(game.PlaceId), ["inline"] = true },
+					{ ["name"] = "🕒 Time in PH timezone", ["value"] = getPHTime(), ["inline"] = false }
+				},
+				["footer"] = { ["text"] = "Seisen Hub | Executor Ban System" },
+				["timestamp"] = os.date("!%Y-%m-%dT%H:%M:%SZ")
+			} }
+		}
+		
+		pcall(function()
+			fRequest({
+				Url = EXECUTOR_BAN_WEBHOOK,
+				Method = "POST",
+				Headers = { ["Content-Type"] = "application/json" },
+				Body = lEncode(banPayload)
+			})
+		end)
+		
+		-- Show executor ban message and exit
+		warn("⚠️ UNSUPPORTED EXECUTOR: " .. currentExecutor .. " is not supported by this script.")
+		warn("Please use a supported executor to run this script.")
+		warn("Supported executors: Synapse X, ScriptWare, Krnl, Fluxus, etc.")
+		
+		-- Show executor ban notification
+		local banGui = Instance.new("ScreenGui", game.CoreGui)
+		banGui.Name = "ExecutorBanNotification"
+		
+		local banFrame = Instance.new("Frame", banGui)
+		banFrame.Size = UDim2.new(0, 450, 0, 200)
+		banFrame.Position = UDim2.new(0.5, -225, 0.5, -100)
+		banFrame.BackgroundColor3 = Color3.fromRGB(200, 120, 50)
+		banFrame.BorderSizePixel = 0
+		Instance.new("UICorner", banFrame).CornerRadius = UDim.new(0, 10)
+		Instance.new("UIStroke", banFrame).Color = Color3.fromRGB(255, 150, 100)
+		
+		local banTitle = Instance.new("TextLabel", banFrame)
+		banTitle.Size = UDim2.new(1, 0, 0, 50)
+		banTitle.Position = UDim2.new(0, 0, 0, 0)
+		banTitle.Text = "⚠️ UNSUPPORTED EXECUTOR"
+		banTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+		banTitle.BackgroundTransparency = 1
+		banTitle.Font = Enum.Font.GothamBold
+		banTitle.TextSize = 22
+		
+		local banMessage = Instance.new("TextLabel", banFrame)
+		banMessage.Size = UDim2.new(1, -20, 0, 120)
+		banMessage.Position = UDim2.new(0, 10, 0, 60)
+		banMessage.Text = "Executor: " .. currentExecutor .. " is not supported.\n\nThis script does not work with " .. bannedExecutor .. " or similar executors.\n\nPlease use a supported executor:\n• Swift • Ronix • Volcano • Bunni\n\nContact support for more information."
+		banMessage.TextColor3 = Color3.fromRGB(255, 255, 255)
+		banMessage.BackgroundTransparency = 1
+		banMessage.Font = Enum.Font.Gotham
+		banMessage.TextSize = 14
+		banMessage.TextWrapped = true
+		
+		-- Auto-remove after 15 seconds
+		task.wait(15)
+		banGui:Destroy()
+		
+		return true -- Executor is banned
+	end
+	
+	return false -- Executor is not banned
 end
 
 local function sendWebhookLog(key, valid)
@@ -312,6 +438,11 @@ end
 -- HWID Ban Check (Run first)
 if checkHWIDBan() then
 	return -- Exit if user is banned
+end
+
+-- Executor Ban Check (Run second)
+if checkExecutorBan() then
+	return -- Exit if executor is banned
 end
 
 -- Auto-check key before UI
@@ -564,5 +695,4 @@ PremiumBtn.MouseButton1Click:Connect(function()
 	task.wait(3)
 	successGui:Destroy()
 end)
-
 
