@@ -1866,8 +1866,8 @@ local placeToStar = {
     ["Spirit Residence"] = "Star_9",
     ["Magic_Hunter_City"] = "Star_10",
     ["Titan Village"] = "Star_11",
-    ["Villageof Sins"] = "Star_12",
-    ["Dungeon Lobby 1"] = "Star_13"
+    ["Village of Sins"] = "Star_12",
+    ["Kaiu Base"] = "Star_13"
 }
 local starToPlace = {}
 for place, star in pairs(placeToStar) do
@@ -2587,3 +2587,4 @@ task.defer(function()
         end
     end
 end)
+
