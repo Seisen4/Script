@@ -17,7 +17,7 @@ local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deivi
 local Window = Library:CreateWindow({
     Title = "Seisen Hub",
     Footer = "Anime Eternal",
-    ToggleKeybind = Enum.KeyCode.LeftAlt,
+    ToggleKeybind = Enum.KeyCode.RightControl,
     Center = true,
     AutoShow = true,
     MobileButtonsSide = "Left"
@@ -50,7 +50,6 @@ local Upgrade2 = UP:AddRightGroupbox("Upgrades 2")
 local UISettings = Window:AddTab("UI Settings", "settings")
 local UnloadGroupbox = UISettings:AddLeftGroupbox("Utilities")
 local RedeemGroupbox = UISettings:AddRightGroupbox("Redeem Codes")
-local InfoGroup = UISettings:AddLeftGroupbox("Script Information", "info")
 
 
 -- Services & Variables
@@ -82,6 +81,7 @@ if not isfolder(configFolder) then
 end
 
 -- Initialize variables with explicit defaults
+local config = getgenv().SeisenHubConfig or {}
 local isAuraEnabled = false
 local fastKillAuraEnabled = false
 local slowKillAuraEnabled = false
@@ -117,14 +117,16 @@ local originalVolumes = {}
 local autoSpiritualPressureUpgradeEnabled = false
 local autoRollReiatsuColorEnabled = false
 local autoRollZanpakutoEnabled = false
-local config = getgenv().SeisenHubConfig or {}
 local autoCursedProgressionUpgradeEnabled = false
 local autoRollCursesEnabled = false
 local autoObeliskEnabled = false
 local fpsBoostEnabled = false
+local autoReAwakeningProgressionUpgradeEnabled = false
+local autoMonarchProgressionUpgradeEnabled = false
 local selectedObeliskType = "Slayer_Obelisk"
 local selectedDungeons = config.SelectedDungeons or {"Dungeon_Easy"}
 local autoRollDemonArtsEnabled = false
+local autoRollSoloHunterRankEnabled = false
 local autoRedeemCodesEnabled = false
 local selectedGachaRarities = config.AutoDeleteGachaRaritiesDropdown or {}
 
@@ -207,12 +209,13 @@ selectedDungeons = config.SelectedDungeons or {"Dungeon_Easy"}
 autoRollZanpakutoEnabled = config.AutoRollZanpakutoToggle or false
 autoCursedProgressionUpgradeEnabled = config.AutoCursedProgressionUpgradeToggle or false
 autoRollCursesEnabled = config.AutoRollCursesToggle or false
-
 autoObeliskEnabled = config.AutoObeliskToggle or false
 selectedObeliskType = config.SelectedObeliskType or "Slayer_Obelisk"
+autoReAwakeningProgressionUpgradeEnabled = config.AutoReAwakeningProgressionUpgradeToggle or false
+autoMonarchProgressionUpgradeEnabled = config.AutoMonarchProgressionUpgradeToggle or false
 fpsBoostEnabled = config.FPSBoostToggle or false
 autoRollDemonArtsEnabled = config.AutoRollDemonArtsToggle or false
-
+autoRollSoloHunterRankEnabled = config.AutoRollSoloHunterRankToggle or false
 selectedGachaRarities = config.AutoDeleteGachaRaritiesDropdown or {}
 
 -- Helper to save config
@@ -490,7 +493,7 @@ local function startAutoQuests()
                 end)
                 task.wait(0.05)
             end
-            task.wait(3)
+            task.wait(2)
         end
     end)
 end
@@ -1287,6 +1290,70 @@ function startAutoCursedProgressionUpgrade()
     end)
 end
 
+function startAutoReAwakeningProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock ReAwakening Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "ReAwakening_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            ToServer:FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoReAwakeningProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "ReAwakening",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "ReAwakening_Progression",
+                }
+            }
+            pcall(function()
+                ToServer:FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
+function startAutoMonarchProgressionUpgrade()
+    task.spawn(function()
+        -- Unlock Monarch Progression first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Monarch_Progression_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep upgrading while enabled
+        while autoMonarchProgressionUpgradeEnabled and getgenv().SeisenHubRunning do
+            local upgradeArgs = {
+                [1] = {
+                    ["Upgrading_Name"] = "Monarch",
+                    ["Action"] = "_Upgrades",
+                    ["Upgrade_Name"] = "Monarch_Progression",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(upgradeArgs))
+            end)
+            task.wait(2)
+        end
+    end)
+end
+
 local function startAutoRollCurses()
     task.spawn(function()
         -- Unlock Curses first (only once)
@@ -1507,6 +1574,38 @@ local function startAutoRollDemonArts()
     end)
 end
 
+local function startAutoRollSoloHunterRank()
+    task.spawn(function()
+        -- Unlock Solo Hunter Rank first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Solo_Hunter_Rank_Unlock",
+            }
+        }
+        pcall(function()
+            ToServer:FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep rolling while enabled
+        while autoRollSoloHunterRankEnabled and getgenv().SeisenHubRunning do
+            local rollArgs = {
+                [1] = {
+                    ["Open_Amount"] = 1,
+                    ["Action"] = "_Gacha_Activate",
+                    ["Name"] = "Solo_Hunter_Rank",
+                }
+            }
+            pcall(function()
+                ToServer:FireServer(unpack(rollArgs))
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
 
 
 local redeemCodes = {
@@ -1517,8 +1616,7 @@ local redeemCodes = {
     "Refresh", "175KFAV", "Update6", "5MVisits", "6MVisits", "190KFAV", "Update5Part2", "45KLIKES", "140KFAV",
     "160KFAV", "4MVisits", "SorryForShutdown3", "SomeBugFix1", "40KLikes", "Update5Part1", "30KLIKES", "125KFAV",
     "7KPlayers", "35KLIKES", "SorryForShutdown2", "SorryForSouls", "3MVISITS", "SorryForDelay2", "60KFav", "75KFav",
-    "2MVisits", "Update3Part2", "20KLikes", "SorryForDelay1", "6KPlayers", "Update4", "25KLIKES", "100KFAV", "16KPlayers",
-    "85KLIKES","Update9Part1","90KLIKES","260KFAV","Update9Part2", "95KLIKES","270KFAV","100KLIKES"
+    "2MVisits", "Update3Part2", "20KLikes", "SorryForDelay1", "6KPlayers", "Update4", "25KLIKES", "100KFAV"
 }
 
 local function redeemAllCodes()
@@ -1594,17 +1692,19 @@ if disableNotificationsEnabled then applyNotificationsState() end
 if mutePetSoundsEnabled then applyMutePetSoundsState() end
 if autoRollZanpakutoEnabled then startAutoRollZanpakuto() end
 if autoCursedProgressionUpgradeEnabled then startAutoCursedProgressionUpgrade() end
+if autoReAwakeningProgressionUpgradeEnabled then startAutoReAwakeningProgressionUpgrade() end
+if autoMonarchProgressionUpgradeEnabled then startAutoMonarchProgressionUpgrade() end
 if autoRollCursesEnabled then startAutoRollCurses() end
 if autoObeliskEnabled then startAutoObelisk() end
 if autoRollDemonArtsEnabled then startAutoRollDemonArts() end
+if autoRollSoloHunterRankEnabled then startAutoRollSoloHunterRank() end
 if fpsBoostEnabled then applyFPSBoostState() end
 if config.AutoDeleteGachaUnitsToggle then startAutoDeleteGacha() end
-if autoSpiritualPressureUpgradeEnabled then startAutoSpiritualPressureUpgrade() end
 
 
 -- Auto Farm Toggle
-local AutoFarmToggle = LeftGroupbox:AddToggle("AutoFarmToggle", {
-    Text = "Auto Farm (Kill Aura + Teleport)",
+LeftGroupbox:AddToggle("AutoFarmToggle", {
+    Text = "Fast Auto Farm",
     Default = isAuraEnabled,
     Callback = function(Value)
         disableAllAurasExcept("AutoFarm")
@@ -1614,20 +1714,6 @@ local AutoFarmToggle = LeftGroupbox:AddToggle("AutoFarmToggle", {
         saveConfig()
     end
 })
-
--- Add a keybind to Auto Farm
-AutoFarmToggle:AddKeyPicker("AutoFarmKeybind", {
-    Default = "F",
-    Text = "Auto Farm Keybind",
-    Mode = "Toggle", -- "Toggle", "Hold", "Always"
-    SyncToggleState = true, -- Syncs the toggle with the keybind
-    Callback = function(Value)
-        -- This will automatically toggle the UI and run the Callback above
-        -- You can add extra logic here if needed
-        print("Auto Farm keybind pressed, value:", Value)
-    end
-})
-
 
 -- Slow Auto Farm Toggle
 LeftGroupbox:AddToggle("FastKillAuraToggle", {
@@ -1757,7 +1843,7 @@ RollGroupbox2:AddToggle("AutoRollSaiyanEvolutionToggle", {
 })
 
 -- Auto Roll Stars Toggle
-local AutoRollStarsToggle = RollGroupbox:AddToggle("AutoRollStarsToggle", {
+RollGroupbox:AddToggle("AutoRollStarsToggle", {
     Text = "Auto Roll Stars",
     Default = autoRollEnabled,
     Callback = function(Value)
@@ -1765,17 +1851,6 @@ local AutoRollStarsToggle = RollGroupbox:AddToggle("AutoRollStarsToggle", {
         config.AutoRollStarsToggle = Value
         if Value then startAutoRollStars() end
         saveConfig()
-    end
-})
-
--- Add a keybind to Auto Roll Stars
-AutoRollStarsToggle:AddKeyPicker("AutoRollStarsKeybind", {
-    Default = "R",
-    Text = "Auto Roll Stars Keybind",
-    Mode = "Toggle", -- "Toggle", "Hold", "Always"
-    SyncToggleState = true, -- Syncs the toggle with the keybind
-    Callback = function(Value)
-        print("Auto Roll Stars keybind pressed, value:", Value)
     end
 })
 
@@ -1901,6 +1976,17 @@ RollGroupbox2:AddToggle("AutoRollDemonArtsToggle", {
         autoRollDemonArtsEnabled = Value
         config.AutoRollDemonArtsToggle = Value
         if Value then startAutoRollDemonArts() end
+        saveConfig()
+    end
+})
+
+RollGroupbox2:AddToggle("AutoRollSoloHunterRankToggle", {
+    Text = "Auto Roll Solo Hunter Rank",
+    Default = autoRollSoloHunterRankEnabled,
+    Callback = function(Value)
+        autoRollSoloHunterRankEnabled = Value
+        config.AutoRollSoloHunterRankToggle = Value
+        if Value then startAutoRollSoloHunterRank() end
         saveConfig()
     end
 })
@@ -2262,6 +2348,28 @@ Upgrade2:AddToggle("AutoCursedProgressionUpgradeToggle", {
     end
 })
 
+Upgrade2:AddToggle("AutoReAwakeningProgressionUpgradeToggle", {
+    Text = "Auto ReAwakening Progression Upgrade",
+    Default = autoReAwakeningProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoReAwakeningProgressionUpgradeEnabled = Value
+        config.AutoReAwakeningProgressionUpgradeToggle = Value
+        if Value then startAutoReAwakeningProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
+Upgrade2:AddToggle("AutoMonarchProgressionUpgradeToggle", {
+    Text = "Auto Monarch Progression Upgrade",
+    Default = autoMonarchProgressionUpgradeEnabled,
+    Callback = function(Value)
+        autoMonarchProgressionUpgradeEnabled = Value
+        config.AutoMonarchProgressionUpgradeToggle = Value
+        if Value then startAutoMonarchProgressionUpgrade() end
+        saveConfig()
+    end
+})
+
 -- Disable Sound
 UnloadGroupbox:AddToggle("MutePetSoundsToggle", {
     Text = "Mute Pet Sounds",
@@ -2286,7 +2394,6 @@ UnloadGroupbox:AddToggle("DisableNotificationsToggle", {
     end
 })
 
-
 UnloadGroupbox:AddToggle("FPSBoostToggle", {
     Text = "FPS Boost (Lower Graphics)",
     Default = fpsBoostEnabled,
@@ -2309,65 +2416,6 @@ RedeemGroupbox:AddToggle("AutoRedeemCodesToggle", {
         end
     end
 })
-
-
-local scaleOptions = {}
-local scaleLabels = {}
-for i = 50, 120, 10 do
-    local label = tostring(i) .. "%"
-    scaleOptions[label] = i
-    table.insert(scaleLabels, label)
-end
-local defaultScale = config.UIScaleDropdown or "100%"
-
-UnloadGroupbox:AddDropdown("UIScaleDropdown", {
-    Values = scaleLabels,
-    Default = defaultScale,
-    Multi = false,
-    Text = "UI Scale",
-    Callback = function(selected)
-        local scale = scaleOptions[selected] or 100
-        config.UIScaleDropdown = selected
-        saveConfig()
-        Library:SetDPIScale(scale)
-    end
-})
-
--- On load, apply saved scale
-task.defer(function()
-    local selected = config.UIScaleDropdown or "100%"
-    local scale = scaleOptions[selected] or 100
-    Library:SetDPIScale(scale)
-end)
-
-UnloadGroupbox:AddToggle("ShowCustomCursorToggle", {
-    Text = "Show Custom Cursor",
-    Default = config.ShowCustomCursorToggle ~= false, -- default true if not set
-    Callback = function(Value)
-        Library.ShowCustomCursor = Value
-        config.ShowCustomCursorToggle = Value
-        saveConfig()
-    end
-})
-
-InfoGroup:AddLabel("Script by: Seisen")
-InfoGroup:AddLabel("Version: 1.0.1")
-InfoGroup:AddLabel("Game: Anime Eternal")
-
-InfoGroup:AddButton("Join Discord", function()
-    setclipboard("https://discord.gg/F4sAf6z8Ph")
-    print("Copied Discord Invite!")
-end)
-
-
--- On load, apply saved cursor state
-task.defer(function()
-    if config.ShowCustomCursorToggle == nil then
-        Library.ShowCustomCursor = true
-    else
-        Library.ShowCustomCursor = config.ShowCustomCursorToggle
-    end
-end)
 
 
 UnloadGroupbox:AddButton("Unload Seisen Hub", function()
@@ -2400,13 +2448,15 @@ UnloadGroupbox:AddButton("Unload Seisen Hub", function()
     selectedStat = false
     autoRollZanpakutoEnabledfalse = false
     autoCursedProgressionUpgradeEnabled = false
+    autoReAwakeningProgressionUpgradeEnabled = false
+    autoMonarchProgressionUpgradeEnabled = false
     autoRollCursesEnabled = false
     autoObeliskEnabled = false
     selectedObeliskType = false
     selectedGachaRarities = false
     autoRollDemonArtsEnabled = false
+    autoRollSoloHunterRankEnabled = false
 
-    disableFPSBoost()
     
     local argsOff = {
         [1] = {
@@ -2473,6 +2523,11 @@ UnloadGroupbox:AddButton("Unload Seisen Hub", function()
         getgenv().SeisenHubConnections = nil
     end
 
+    -- Disable FPS boost and restore original settings
+    if wasFPSBoostEnabled then
+        disableFPSBoost()
+    end
+
     getgenv().SeisenHubUI = nil
     getgenv().SeisenHubLoaded = nil
     getgenv().SeisenHubRunning = nil
@@ -2531,7 +2586,4 @@ task.defer(function()
             end
         end
     end
-
 end)
-
-
