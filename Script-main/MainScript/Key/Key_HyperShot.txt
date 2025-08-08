@@ -300,7 +300,7 @@ end
 local function loadSwordburst()
 	task.spawn(function()
 		local success, err = pcall(function()
-			loadstring(game:HttpGet("https://raw.githubusercontent.com/Seisen88/Script/refs/heads/main/MainScript/Script/Script_Hypershot"))()
+			loadstring(game:HttpGet("https://raw.githubusercontent.com/Seisen4/Script/refs/heads/main/Script-main/MainScript/Script/Script_Hypershot"))()
 		end)
 		if not success then
 			warn("Failed to load Swordburst:", err)
