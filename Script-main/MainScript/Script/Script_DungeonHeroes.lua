@@ -2970,7 +2970,7 @@ trackTask(task.spawn(function()
             local key = getDungeonKey(entry)
             print("[AutoNextDungeon] Waiting for boss in last room...")
             local bossName = nil
-            for i = 1, 300 do -- 5 minutes
+            for i = 1, 600 do -- 5 minutes
                 bossName = getLastRoomBossName()
                 if bossName then
                     break
@@ -2980,7 +2980,7 @@ trackTask(task.spawn(function()
 
             if bossName then
                 local appeared = false
-                for i = 1, 300 do
+                for i = 1, 600 do
                     if bossInMobs(bossName) then
                         appeared = true
                         break
@@ -3002,7 +3002,7 @@ trackTask(task.spawn(function()
                 [2] = entry.difficulty,
                 [3] = 1,
                 [4] = false,
-                [5] = false
+                [5] = true
             }
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Parties", 9e9):WaitForChild("SetSettings", 9e9):FireServer(unpack(args))
@@ -3057,3 +3057,4 @@ AutoFarmHeightSlider:SetValue(config.autoFarmHeight or autoFarmHeight)
 AutoSellToggle:SetValue(config.autoSellEnabled)
 AutoSellRarityDropdown:SetValue(config.autoSellRarity or selectedRarity)
 CustomCursorToggle:SetValue(config.customCursorEnabled)
+
