@@ -4,6 +4,29 @@
 -- Load the Obsidian UI Library
 local Library = loadstring(game:HttpGet("https://raw.githubusercontent.com/deividcomsono/Obsidian/refs/heads/main/Library.lua"))()
 
+-- Create a comprehensive cleanup system to track all connections and tasks
+local _SCRIPT_CONNECTIONS = {}
+local _SCRIPT_TASKS = {}
+local _CLEANUP_COMPLETED = false
+
+-- Helper function to track connections
+local function trackConnection(connection, name)
+    if connection and typeof(connection) == "RBXScriptConnection" then
+        _SCRIPT_CONNECTIONS[name or "unnamed"] = connection
+        return connection
+    end
+    return connection
+end
+
+-- Helper function to track tasks  
+local function trackTask(task, name)
+    if task then
+        _SCRIPT_TASKS[name or "unnamed"] = task
+        return task
+    end
+    return task
+end
+
 -- Services (move to top for global use)
 local Players = game:GetService("Players")
 local RS = game:GetService("ReplicatedStorage")
@@ -83,6 +106,7 @@ local config = {
     autoNextDungeon = false,
     autoFarmEnabled = false,
     autoSkillEnabled = false,
+    autoMiniBossEnabled = false,
     skillToggles = {}, -- [skillName] = true/false
     dungeonSequenceIndex = 1,
     normalDungeonName = "Shattered Forest lvl 1+",
@@ -101,8 +125,9 @@ local config = {
     fpsBoostEnabled = false,
     maxfpsBoostenabled = false,
     supermaxfpsBoostenabled = false,
-        autoSellEnabled = false,
+    autoSellEnabled = false,
     autoSellRarity = "Common",
+    customCursorEnabled = false, -- Changed default to false
 }
 
 -- Load config if file exists
@@ -128,6 +153,7 @@ autoStartDungeon = config.autoStartDungeon
 autoReplyDungeon = config.autoReplyDungeon
 autoNextDungeon = config.autoNextDungeon
 autoFarmEnabled = config.autoFarmEnabled
+autoMiniBossEnabled = config.autoMiniBossEnabled
 RuntimeState = RuntimeState or {}
 RuntimeState.autoSkillEnabled = config.autoSkillEnabled
 RuntimeState.skillToggles = config.skillToggles or {}
@@ -454,12 +480,14 @@ local function initializeSkillData()
         ["MagicMissiles"] = {
             ["DisplayName"] = "Magic Missiles",
             ["Cooldown"] = 10,
-            ["UseLength"] = 1.2,
+            ["UseLength"] = 1.5,
             ["CanMultiHit"] = true,
             ["Hits"] = {
-                {["Type"] = "Magic", ["Damage"] = 1.5},
-                {["Type"] = "Magic", ["Damage"] = 1.5},
-                {["Type"] = "Magic", ["Damage"] = 1.5}
+                {["Type"] = "Normal", ["Damage"] = 1},
+                {["Type"] = "Normal", ["Damage"] = 1},
+                {["Type"] = "Normal", ["Damage"] = 1},
+                {["Type"] = "Normal", ["Damage"] = 1},
+                {["Type"] = "Normal", ["Damage"] = 1}
             },
             ["PreloadAnimation"] = "MagicMissiles"
         },
@@ -556,6 +584,7 @@ local function initializeSkillData()
             ["Cooldown"] = 21,
             ["UseLength"] = {0.3, 0.4, 0.25, 0.35, 0.5},
             ["CanMultiHit"] = true,
+            ["NumCharges"] = 5,
             ["Hits"] = {
                 {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "ElectricShock", ["StatusDuration"] = 8}
             }
@@ -584,6 +613,377 @@ local function initializeSkillData()
             ["CanMultiHit"] = false,
             ["Hits"] = {}
         },
+        ["SelfHeal"] = {
+            ["DisplayName"] = "Self Heal",
+            ["Cooldown"] = 15,
+            ["UseLength"] = 1,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Heal", ["Damage"] = 3, ["CannotCrit"] = true}
+            }
+        },
+        ["DivineIntervention"] = {
+            ["DisplayName"] = "Divine Intervention",
+            ["Cooldown"] = 26,
+            ["UseLength"] = 2,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Heal", ["Damage"] = 1.5},
+                {["Type"] = "Heal", ["Damage"] = 1.5},
+                {["Type"] = "Heal", ["Damage"] = 1.5},
+                {["Type"] = "Heal", ["Damage"] = 1.5},
+                {["Type"] = "Heal", ["Damage"] = 1.5}
+            }
+        },
+        ["SolarRay"] = {
+            ["DisplayName"] = "Solar Ray",
+            ["Cooldown"] = 14,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 5.5}
+            }
+        },
+        ["ArcaneBlast"] = {
+            ["DisplayName"] = "Arcane Blast",
+            ["Cooldown"] = 16,
+            ["UseLength"] = 2.5,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5}
+            }
+        },
+        ["DeathsGrasp"] = {
+            ["DisplayName"] = "Death's Grasp",
+            ["Cooldown"] = 25,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 2},
+                {["Type"] = "Normal", ["Damage"] = 2},
+                {["Type"] = "Normal", ["Damage"] = 2},
+                {["Type"] = "Normal", ["Damage"] = 2},
+                {["Type"] = "Heal", ["Damage"] = 0.3, ["CannotCrit"] = true},
+                {["Type"] = "Heal", ["Damage"] = 0.3, ["CannotCrit"] = true},
+                {["Type"] = "Heal", ["Damage"] = 0.3, ["CannotCrit"] = true},
+                {["Type"] = "Heal", ["Damage"] = 0.3, ["CannotCrit"] = true}
+            }
+        },
+        ["IcyBlast"] = {
+            ["DisplayName"] = "Icy Blast",
+            ["Cooldown"] = 8,
+            ["UseLength"] = 1.35,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 2.5, ["Status"] = "Chilled", ["StatusDuration"] = 3}
+            }
+        },
+        ["MysticChains"] = {
+            ["DisplayName"] = "Mystic Chains",
+            ["Cooldown"] = 15,
+            ["UseLength"] = 1.5,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 1.25, ["Status"] = "Slow", ["StatusDuration"] = 5},
+                {["Type"] = "Normal", ["Damage"] = 1.25},
+                {["Type"] = "Normal", ["Damage"] = 1.25},
+                {["Type"] = "Normal", ["Damage"] = 1.25},
+                {["Type"] = "Normal", ["Damage"] = 1.25}
+            }
+        },
+        ["EarthEruption"] = {
+            ["DisplayName"] = "Earth Eruption",
+            ["Cooldown"] = 25,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4},
+                {["Type"] = "Normal", ["Damage"] = 0.5, ["Status"] = "Burn", ["StatusDuration"] = 0.4}
+            }
+        },
+        ["EarthRain"] = {
+            ["DisplayName"] = "Earth Rain",
+            ["Cooldown"] = 28,
+            ["UseLength"] = 3.1,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5}
+            }
+        },
+        ["EarthRipple"] = {
+            ["DisplayName"] = "Earth Ripple",
+            ["Cooldown"] = 15,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Slow", ["StatusDuration"] = 3}
+            }
+        },
+        ["Severance"] = {
+            ["DisplayName"] = "Severance",
+            ["Cooldown"] = 20,
+            ["UseLength"] = 3.3,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 9}
+            }
+        },
+        ["CrystalChaos"] = {
+            ["DisplayName"] = "Crystal Chaos",
+            ["Cooldown"] = 15,
+            ["UseLength"] = 2,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 4.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 4.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 4.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 4.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 4.5, ["Status"] = "Stun", ["StatusDuration"] = 3}
+            }
+        },
+        ["TitansGrasp"] = {
+            ["DisplayName"] = "Titan's Grasp",
+            ["Cooldown"] = 18,
+            ["UseLength"] = 1.4,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 8},
+                {["Type"] = "Normal", ["Damage"] = 8},
+                {["Type"] = "Normal", ["Damage"] = 8},
+                {["Type"] = "Normal", ["Damage"] = 8},
+                {["Type"] = "Normal", ["Damage"] = 8}
+            }
+        },
+        ["BladeStorm"] = {
+            ["DisplayName"] = "Blade Storm",
+            ["Cooldown"] = 15,
+            ["UseLength"] = 1.35,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 0.35},
+                {["Type"] = "Normal", ["Damage"] = 0.35},
+                {["Type"] = "Normal", ["Damage"] = 0.35},
+                {["Type"] = "Normal", ["Damage"] = 0.35},
+                {["Type"] = "Normal", ["Damage"] = 0.35},
+                {["Type"] = "Normal", ["Damage"] = 0.35}
+            }
+        },
+        ["MushroomBounce"] = {
+            ["DisplayName"] = "Mushroom Bounce",
+            ["Cooldown"] = 10,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 2.75}
+            }
+        },
+        ["Grovebreaker"] = {
+            ["DisplayName"] = "Grovebreaker",
+            ["Cooldown"] = 14,
+            ["UseLength"] = 2.1,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Punctured", ["StatusDuration"] = 5},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Punctured", ["StatusDuration"] = 5},
+                {["Type"] = "Normal", ["Damage"] = 5, ["Status"] = "Punctured", ["StatusDuration"] = 5}
+            }
+        },
+        ["RootQuake"] = {
+            ["DisplayName"] = "Root Quake",
+            ["Cooldown"] = 15,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 3.5, ["Status"] = "Slow", ["StatusDuration"] = 4},
+                {["Type"] = "Normal", ["Damage"] = 3.5, ["Status"] = "Slow", ["StatusDuration"] = 4},
+                {["Type"] = "Normal", ["Damage"] = 3.5, ["Status"] = "Slow", ["StatusDuration"] = 4}
+            }
+        },
+        ["Stampede"] = {
+            ["DisplayName"] = "Stampede",
+            ["Cooldown"] = 16,
+            ["UseLength"] = 3.4,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 5.5, ["Status"] = "Stun", ["StatusDuration"] = 3}
+            }
+        },
+        ["ShatteringEarth"] = {
+            ["DisplayName"] = "Shattering Earth",
+            ["Cooldown"] = 20,
+            ["UseLength"] = 2.35,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 6, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 6, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 6, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 6, ["Status"] = "Stun", ["StatusDuration"] = 3},
+                {["Type"] = "Normal", ["Damage"] = 6, ["Status"] = "Stun", ["StatusDuration"] = 3}
+            }
+        },
+        ["DustDevil"] = {
+            ["DisplayName"] = "Dust Devil",
+            ["Cooldown"] = 16,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5},
+                {["Type"] = "Normal", ["Damage"] = 0.5}
+            }
+        },
+        ["DuneCaller"] = {
+            ["DisplayName"] = "Dune Caller",
+            ["Cooldown"] = 30,
+            ["UseLength"] = 4.5,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {
+                {["Type"] = "Normal", ["Damage"] = 20}
+            }
+        },
+        ["HardenedSkin"] = {
+            ["DisplayName"] = "Hardened Skin",
+            ["Cooldown"] = 30,
+            ["UseLength"] = 1.8,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {}
+        },
+        ["ShroomFrenzy"] = {
+            ["DisplayName"] = "Shroom Frenzy",
+            ["Cooldown"] = 25,
+            ["UseLength"] = 2.7,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {}
+        },
+        ["BarkskinRally"] = {
+            ["DisplayName"] = "Barkskin Rally",
+            ["Cooldown"] = 32,
+            ["UseLength"] = 2.5,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {}
+        },
+        ["GuardiansPact"] = {
+            ["DisplayName"] = "Guardian's Pact",
+            ["Cooldown"] = 21,
+            ["UseLength"] = 1.4,
+            ["CanMultiHit"] = false,
+            ["Hits"] = {}
+        },
+        ["Polymorph"] = {
+            ["DisplayName"] = "Polymorph",
+            ["Cooldown"] = 30,
+            ["UseLength"] = 2.2,
+            ["CanMultiHit"] = true,
+            ["Hits"] = {}
+        },
     }
     
     -- Initialize default selected skills
@@ -600,7 +1000,7 @@ local function updateCharacterReferences()
 end
 
 -- Listen for character changes
-LocalPlayer.CharacterAdded:Connect(updateCharacterReferences)
+trackConnection(LocalPlayer.CharacterAdded:Connect(updateCharacterReferences), "CharacterAdded")
 
 -- Initialize character references
 if LocalPlayer.Character then
@@ -832,7 +1232,7 @@ local function useSkill(skillName, target)
 end
 
 -- Auto Skill loop
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if RuntimeState.autoSkillEnabled and Character and HRP then
             -- Check each skill that is enabled via checkboxes
@@ -857,7 +1257,7 @@ task.spawn(function()
         end
         task.wait(CONFIG.SKILL_CHECK_INTERVAL)
     end
-end)
+end), "AutoSkillLoop")
 
 -- Create the main window
 local Window = Library:CreateWindow({
@@ -865,30 +1265,27 @@ local Window = Library:CreateWindow({
     Footer = "Dungeon Heroes",
     Center = true,
     AutoShow = true,
-    ToggleKeybind = Enum.KeyCode.RightControl,
+    ToggleKeybind = Enum.KeyCode.LeftAlt,
     MobileButtonsSide = "Right"
 })
 
--- Add tabs
 local MainTab = Window:AddTab("Main", "box")
 local DungeonTab = Window:AddTab("Dungeon", "swords")
 local SettingsTab = Window:AddTab("UI Settings", "settings")
 
--- Add groupboxes
 local FeaturesBox = MainTab:AddLeftGroupbox("Features")
 local AutoSkillBox = MainTab:AddRightGroupbox("Auto Skill")
--- local InfoBox = MainTab:AddRightGroupbox("Information") -- Removed as requested
 
---// Auto Farm Configuration
-local autoFarmEnabled = false
-local autoFarmHeight = 50 -- studs above mob
-local autoFarmSpeed = 80 -- higher = faster
-local autoFarmCheckInterval = 0.2
+autoFarmEnabled = false
+autoFarmHeight = 30
+autoFarmSpeed = 80
+autoFarmCheckInterval = 0.2
 
--- Noclip state
-local noclipConnection = nil
+autoMiniBossEnabled = false
 
--- Add toggle to UI
+noclipConnection = nil
+
+-- Add Auto Farm toggle
 local AutoFarmToggle = FeaturesBox:AddToggle("AutoFarm", {
     Text = "Auto Farm",
     Default = config.autoFarmEnabled,
@@ -902,7 +1299,7 @@ local AutoFarmToggle = FeaturesBox:AddToggle("AutoFarm", {
         -- Noclip logic
         if Value then
             if not noclipConnection then
-                noclipConnection = game:GetService("RunService").Stepped:Connect(function()
+                noclipConnection = trackConnection(game:GetService("RunService").Stepped:Connect(function()
                     if Character then
                         for _, part in ipairs(Character:GetDescendants()) do
                             if part:IsA("BasePart") then
@@ -910,7 +1307,7 @@ local AutoFarmToggle = FeaturesBox:AddToggle("AutoFarm", {
                             end
                         end
                     end
-                end)
+                end), "AutoFarmNoclip")
             end
         else
             if noclipConnection then
@@ -929,8 +1326,21 @@ local AutoFarmToggle = FeaturesBox:AddToggle("AutoFarm", {
     end
 })
 
+-- Add Auto Mini Boss toggle
+local AutoMiniBossToggle = FeaturesBox:AddToggle("AutoMiniBoss", {
+    Text = "Auto Mini Boss",
+    Default = config.autoMiniBossEnabled,
+    Tooltip = "Automatically tweens to mini bosses in dungeon rooms (1-5) and replays when killed",
+    Callback = function(Value)
+        autoMiniBossEnabled = Value
+        config.autoMiniBossEnabled = Value
+        saveConfig()
+        Library:Notify({Title = "Auto Mini Boss", Description = Value and "Enabled" or "Disabled", Time = 2})
+    end
+})
+
 --// Auto Farm Loop
-task.spawn(function()
+trackTask(task.spawn(function()
     local bodyVelocity = nil
     local currentMob = nil
 
@@ -999,7 +1409,159 @@ task.spawn(function()
         end
         task.wait(autoFarmCheckInterval)
     end
-end)
+end), "AutoFarmLoop")
+
+trackTask(task.spawn(function()
+    local miniBossBodyVelocity = nil
+    local currentMob = nil
+    local isWaitingForMiniBoss = false
+    local currentMiniBossName = nil
+    local miniBossNoclipConnection = nil
+    
+    local miniBossList = {
+        "Ursolare", "Okurio", "Sea Serpent", "Melchior"
+    }
+
+    while true do
+        if config.autoMiniBossEnabled and Character and HRP then
+            if not miniBossNoclipConnection then
+                miniBossNoclipConnection = trackConnection(game:GetService("RunService").Stepped:Connect(function()
+                    if Character then
+                        for _, part in ipairs(Character:GetDescendants()) do
+                            if part:IsA("BasePart") then
+                                part.CanCollide = false
+                            end
+                        end
+                    end
+                end), "AutoMiniBossNoclip")
+            end
+
+            -- First priority: Move to any mob in Workspace > Mobs
+            if not currentMob then
+                -- Find any mob to tween to
+                for _, mob in ipairs(mobFolder:GetChildren()) do
+                    if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
+                        -- Skip mobs that have PetHealthbar or PetIItemRef
+                        if mob:FindFirstChild("PetHealthbar") or mob:FindFirstChild("PetIItemRef") then
+                            continue
+                        end
+                        -- Skip TargetDummy mobs
+                        if mob.Name == "TargetDummy" then
+                            continue
+                        end
+                        local mobHRP = mob.HumanoidRootPart
+                        local healthbar = mob:FindFirstChild("Healthbar")
+                        if healthbar and mobHRP then
+                            currentMob = mob
+                            break
+                        end
+                    end
+                end
+            end
+
+            -- Move to current mob using BodyVelocity
+            if currentMob then
+                local mobHRP = currentMob:FindFirstChild("HumanoidRootPart")
+                local healthbar = currentMob:FindFirstChild("Healthbar")
+                
+                if mobHRP and healthbar then
+                    -- Create BodyVelocity if not exists
+                    if not miniBossBodyVelocity or miniBossBodyVelocity.Parent ~= HRP then
+                        if miniBossBodyVelocity then pcall(function() miniBossBodyVelocity:Destroy() end) end
+                        miniBossBodyVelocity = Instance.new("BodyVelocity")
+                        miniBossBodyVelocity.MaxForce = Vector3.new(1e5, 1e5, 1e5)
+                        miniBossBodyVelocity.P = 1e4
+                        miniBossBodyVelocity.Parent = HRP
+                    end
+
+                    -- Calculate target position (above mob)
+                    local targetPos = mobHRP.Position + Vector3.new(0, 50, 0)
+                    local direction = (targetPos - HRP.Position)
+                    local distance = direction.Magnitude
+
+                    -- Smoothly move towards target
+                    if distance > 1 then
+                        miniBossBodyVelocity.Velocity = direction.Unit * math.min(distance * 4, 80)
+                    else
+                        miniBossBodyVelocity.Velocity = Vector3.new(0,0,0)
+                    end
+                else
+                    -- Mob died or healthbar gone, find next mob
+                    if miniBossBodyVelocity then pcall(function() miniBossBodyVelocity:Destroy() end) miniBossBodyVelocity = nil end
+                    currentMob = nil
+                end
+            end
+
+            local foundMiniBoss = nil
+            local foundMiniBossName = nil
+            
+            for _, miniBossName in ipairs(miniBossList) do
+                local miniBossInMobs = mobFolder:FindFirstChild(miniBossName)
+                if miniBossInMobs then
+                    foundMiniBoss = miniBossInMobs
+                    foundMiniBossName = miniBossName
+                    break
+                end
+            end
+            
+            if foundMiniBoss then
+                currentMob = foundMiniBoss
+                isWaitingForMiniBoss = true
+                currentMiniBossName = foundMiniBossName
+            else
+                -- No mini boss found in mobs
+                if isWaitingForMiniBoss and currentMiniBossName then
+                    if miniBossBodyVelocity then pcall(function() miniBossBodyVelocity:Destroy() end) miniBossBodyVelocity = nil end
+                    currentMob = nil
+                    isWaitingForMiniBoss = false
+                    currentMiniBossName = nil
+                    task.wait(3)
+                    local success1 = pcall(function()
+                        game.Players.LocalPlayer:SetAttribute("ExitChoice", "GoAgain")
+                    end)
+                    task.wait(0.1)
+                    local success2 = pcall(function()
+                        local args = { [1] = "GoAgain" }
+                        game:GetService("ReplicatedStorage")
+                            :WaitForChild("Systems", 9e9)
+                            :WaitForChild("Dungeons", 9e9)
+                            :WaitForChild("SetExitChoice", 9e9)
+                            :FireServer(unpack(args))
+                    end)
+                    task.wait(0.1)
+                    local success3 = pcall(function()
+                        game:GetService("ReplicatedStorage")
+                            :WaitForChild("Systems", 9e9)
+                            :WaitForChild("Dungeons", 9e9)
+                            :WaitForChild("InstantChoice", 9e9)
+                            :FireServer(true)
+                    end)
+                else
+                end
+            end
+
+        else
+            -- Not enabled, cleanup
+            if miniBossBodyVelocity then pcall(function() miniBossBodyVelocity:Destroy() end) miniBossBodyVelocity = nil end
+            currentMob = nil
+            isWaitingForMiniBoss = false
+            currentMiniBossName = nil
+            
+            if miniBossNoclipConnection then
+                miniBossNoclipConnection:Disconnect()
+                miniBossNoclipConnection = nil
+                if Character then
+                    for _, part in ipairs(Character:GetDescendants()) do
+                        if part:IsA("BasePart") then
+                            part.CanCollide = true
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.2) -- Check frequently for smooth movement
+    end
+end), "AutoMiniBossLoop")
 
 -- Add Kill Aura toggle
 local KillAuraToggle = FeaturesBox:AddToggle("KillAura", {
@@ -1034,9 +1596,6 @@ local AutoSkillToggle = AutoSkillBox:AddToggle("AutoSkill", {
         end
     end
 })
-
--- Add skill checkboxes
--- ...existing code...
 
 -- Add skill checkboxes with alphabetical order and search
 local skillToggles = {}
@@ -1088,7 +1647,6 @@ for skillName, toggle in pairs(skillToggles) do
     end
 end
 
--- Add Auto Start/Reply Dungeon toggles
 local autoStartDungeon = false
 local autoReplyDungeon = false
 
@@ -1116,7 +1674,7 @@ local AutoReplyDungeonToggle = FeaturesBox:AddToggle("AutoReplyDungeon", {
     end
 })
 
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if autoReplyDungeon then
             local args = {
@@ -1132,52 +1690,51 @@ task.spawn(function()
         end
         task.wait(1.5) -- Check every 1.5 seconds
     end
-end)
+end), "AutoReplyDungeonLoop")
 
 -- Add Auto Next Dungeon toggle and settings
 local autoNextDungeon = false
--- Replace your current dungeonSequence with this:
 local dungeonSequence = {
-    {name = "ForestDungeon", difficulty = 1}, -- Normal
-    {name = "ForestDungeon", difficulty = 2}, -- Medium
-    {name = "ForestDungeon", difficulty = 3}, -- Hard
-    {name = "ForestDungeon", difficulty = 4}, -- Insane
-    {name = "MountainDungeon", difficulty = 1}, -- Normal
-    {name = "MountainDungeon", difficulty = 2}, -- Medium
-    {name = "MountainDungeon", difficulty = 3}, -- Hard
-    {name = "MountainDungeon", difficulty = 4}, -- Insane
-    {name = "CoveDungeon", difficulty = 1}, -- Normal
-    {name = "CoveDungeon", difficulty = 2}, -- Medium
-    {name = "CoveDungeon", difficulty = 3}, -- Hard
-    {name = "CoveDungeon", difficulty = 4}, -- Insane
-    {name = "CastleDungeon", difficulty = 1}, -- Normal
-    {name = "CastleDungeon", difficulty = 2}, -- Medium
-    {name = "CastleDungeon", difficulty = 3}, -- Hard
-    {name = "CastleDungeon", difficulty = 4}, -- Insane
-    {name = "JungleDungeon", difficulty = 1}, -- Normal
-    {name = "JungleDungeon", difficulty = 2}, -- Medium
-    {name = "JungleDungeon", difficulty = 3}, -- Hard
-    {name = "JungleDungeon", difficulty = 4}, -- Insane
-    {name = "AstralDungeon", difficulty = 1}, -- Normal
-    {name = "AstralDungeon", difficulty = 2}, -- Medium
-    {name = "AstralDungeon", difficulty = 3}, -- Hard
-    {name = "AstralDungeon", difficulty = 4}, -- Insane
-    {name = "DesertDungeon", difficulty = 1}, -- Normal
-    {name = "DesertDungeon", difficulty = 2}, -- Medium
-    {name = "DesertDungeon", difficulty = 3}, -- Hard
-    {name = "DesertDungeon", difficulty = 4}, -- Insane
-    {name = "CaveDungeon", difficulty = 1}, -- Normal
-    {name = "CaveDungeon", difficulty = 2}, -- Medium
-    {name = "CaveDungeon", difficulty = 3}, -- Hard
-    {name = "CaveDungeon", difficulty = 4}, -- Insane
-    {name = "MushroomDungeon", difficulty = 1}, -- Normal
-    {name = "MushroomDungeon", difficulty = 2}, -- Medium
-    {name = "MushroomDungeon", difficulty = 3}, -- Hard
-    {name = "MushroomDungeon", difficulty = 4}, -- Insane
-    {name = "GoldDungeon", difficulty = 1}, -- Normal
-    {name = "GoldDungeon", difficulty = 2}, -- Medium
-    {name = "GoldDungeon", difficulty = 3}, -- Hard
-    {name = "GoldDungeon", difficulty = 4}, -- Insane
+    {name = "ForestDungeon", difficulty = 1},
+    {name = "ForestDungeon", difficulty = 2},
+    {name = "ForestDungeon", difficulty = 3},
+    {name = "ForestDungeon", difficulty = 4},
+    {name = "MountainDungeon", difficulty = 1},
+    {name = "MountainDungeon", difficulty = 2},
+    {name = "MountainDungeon", difficulty = 3},
+    {name = "MountainDungeon", difficulty = 4},
+    {name = "CoveDungeon", difficulty = 1},
+    {name = "CoveDungeon", difficulty = 2},
+    {name = "CoveDungeon", difficulty = 3},
+    {name = "CoveDungeon", difficulty = 4},
+    {name = "CastleDungeon", difficulty = 1},
+    {name = "CastleDungeon", difficulty = 2},
+    {name = "CastleDungeon", difficulty = 3},
+    {name = "CastleDungeon", difficulty = 4},
+    {name = "JungleDungeon", difficulty = 1},
+    {name = "JungleDungeon", difficulty = 2},
+    {name = "JungleDungeon", difficulty = 3},
+    {name = "JungleDungeon", difficulty = 4},
+    {name = "AstralDungeon", difficulty = 1},
+    {name = "AstralDungeon", difficulty = 2},
+    {name = "AstralDungeon", difficulty = 3},
+    {name = "AstralDungeon", difficulty = 4},
+    {name = "DesertDungeon", difficulty = 1},
+    {name = "DesertDungeon", difficulty = 2},
+    {name = "DesertDungeon", difficulty = 3},
+    {name = "DesertDungeon", difficulty = 4},
+    {name = "CaveDungeon", difficulty = 1},
+    {name = "CaveDungeon", difficulty = 2},
+    {name = "CaveDungeon", difficulty = 3},
+    {name = "CaveDungeon", difficulty = 4},
+    {name = "MushroomDungeon", difficulty = 1},
+    {name = "MushroomDungeon", difficulty = 2},
+    {name = "MushroomDungeon", difficulty = 3},
+    {name = "MushroomDungeon", difficulty = 4},
+    {name = "GoldDungeon", difficulty = 1},
+    {name = "GoldDungeon", difficulty = 2},
+    {name = "GoldDungeon", difficulty = 3},
+    {name = "GoldDungeon", difficulty = 4},
 }
 local dungeonSequenceIndex = 1
 local autoClaimDailyQuest = false
@@ -1195,7 +1752,7 @@ local AutoClaimDailyQuestToggle = FeaturesBox:AddToggle("AutoClaimDailyQuest", {
 })
 
 
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if autoClaimDailyQuest then
             local profile = nil
@@ -1226,7 +1783,7 @@ task.spawn(function()
         end
         task.wait(3)
     end
-end)
+end), "AutoClaimDailyQuestLoop")
 
 
 local autoEquipHighestWeapon = false
@@ -1261,8 +1818,8 @@ local AutoFarmHeightSlider = FeaturesBox:AddSlider("AutoFarmHeight", {
 })
 
 
--- Auto Equip Highest Weapon Logic
-task.spawn(function()
+-- Auto Equip Highest Equipment Logic (Improved)
+trackTask(task.spawn(function()
     while true do
         if autoEquipHighestWeapon then
             local profile = nil
@@ -1276,8 +1833,25 @@ task.spawn(function()
                     itemsModule = require(game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Items", 9e9))
                 end)
 
-                -- Helper to get equipped item and its level for a slot
-                local function getEquippedItemAndLevel(slot, typeName)
+                -- Helper to calculate item power with level priority
+                local function getItemPower(item, showDebug)
+                    if not item or not itemsModule then return -math.huge, "No item or module" end
+                    local itemData = nil
+                    local rarity = 0
+                    local level = 1
+                    
+                    pcall(function()
+                        itemData = itemsModule:GetItemData(item.Name)
+                        rarity = itemsModule:GetRarity(item) or 0
+                        level = itemData and itemData.Level or 1
+                    end)
+                    
+                    local power = (level * 1000) + rarity
+                    
+                    return power, string.format("L%d R%d", level, rarity)
+                end
+
+                local function getEquippedItemAndPower(slot, typeName)
                     local equippedFolder = profile.Equipped:FindFirstChild(slot)
                     if equippedFolder then
                         for _, equippedItem in ipairs(equippedFolder:GetChildren()) do
@@ -1286,18 +1860,19 @@ task.spawn(function()
                                 itemData = itemsModule:GetItemData(equippedItem.Name)
                             end)
                             if itemData and (not typeName or itemData.Type == typeName) then
-                                return equippedItem, itemData.Level or 1
+                                local power, info = getItemPower(equippedItem, false)
+                                return equippedItem, power, info
                             end
                         end
                     end
-                    return nil, -math.huge
+                    return nil, -math.huge, "None"
                 end
 
-                -- Helper to find highest level item in inventory for a slot
                 local function findBestInInventory(category, typeName, equippedItem)
                     local bestItem = nil
-                    local bestLevel = -math.huge
-                    local bestRarity = -math.huge
+                    local bestPower = -math.huge
+                    local bestInfo = "None"
+                    
                     for _, item in ipairs(profile.Inventory:GetChildren()) do
                         if not equippedItem or item ~= equippedItem then
                             local itemData = nil
@@ -1305,62 +1880,102 @@ task.spawn(function()
                                 itemData = itemsModule:GetItemData(item.Name)
                             end)
                             if itemData and itemData.Category == category and (not typeName or itemData.Type == typeName) then
-                                local lvl = itemData.Level or 1
-                                local rarity = itemsModule:GetRarity(item)
-                                if rarity > bestRarity or (rarity == bestRarity and lvl > bestLevel) then
-                                    bestRarity = rarity
-                                    bestLevel = lvl
+                                local power, info = getItemPower(item, false)
+                                if power > bestPower then
+                                    bestPower = power
                                     bestItem = item
+                                    bestInfo = info
                                 end
                             end
                         end
                     end
-                    return bestItem, bestLevel
+                    return bestItem, bestPower, bestInfo
                 end
 
-                -- Weapon (Right)
-                local equippedWeapon, equippedWeaponLevel = getEquippedItemAndLevel("Right")
-                local bestWeaponItem, bestWeaponLevel = findBestInInventory("Weapon", nil, equippedWeapon)
-                if bestWeaponItem and bestWeaponLevel > equippedWeaponLevel then
+                local function equipWeapon(item, equippedInfo, newInfo)
+                    if not item then return end
+                    task.wait(0.2)
                     pcall(function()
                         game:GetService("ReplicatedStorage")
                             :WaitForChild("Systems", 9e9)
                             :WaitForChild("Equipment", 9e9)
                             :WaitForChild("Equip", 9e9)
-                            :FireServer("Right", bestWeaponItem)
+                            :FireServer("Right", item)
                     end)
+                    Library:Notify({
+                        Title = "Auto Equip Weapon", 
+                        Description = string.format("Upgraded: %s → %s (%s)", 
+                            equippedInfo, item.Name or "Unknown", newInfo),
+                        Time = 4
+                    })
                 end
 
-                -- Shirt
-                local equippedShirt, equippedShirtLevel = getEquippedItemAndLevel("Shirt", "Shirt")
-                local bestShirtItem, bestShirtLevel = findBestInInventory("Armor", "Shirt", equippedShirt)
-                if bestShirtItem and bestShirtLevel > equippedShirtLevel then
+                local function equipArmor(item, equippedInfo, newInfo)
+                    if not item then return end
+                    task.wait(0.2)
                     pcall(function()
                         game:GetService("ReplicatedStorage")
                             :WaitForChild("Systems", 9e9)
                             :WaitForChild("Equipment", 9e9)
                             :WaitForChild("EquipArmor", 9e9)
-                            :FireServer(bestShirtItem)
+                            :FireServer(item)
                     end)
+                    Library:Notify({
+                        Title = "Auto Equip Armor", 
+                        Description = string.format("Upgraded: %s → %s (%s)", 
+                            equippedInfo, item.Name or "Unknown", newInfo),
+                        Time = 4
+                    })
                 end
 
-                -- Pants
-                local equippedPants, equippedPantsLevel = getEquippedItemAndLevel("Pants", "Pants")
-                local bestPantsItem, bestPantsLevel = findBestInInventory("Armor", "Pants", equippedPants)
-                if bestPantsItem and bestPantsLevel > equippedPantsLevel then
-                    pcall(function()
-                        game:GetService("ReplicatedStorage")
-                            :WaitForChild("Systems", 9e9)
-                            :WaitForChild("Equipment", 9e9)
-                            :WaitForChild("EquipArmor", 9e9)
-                            :FireServer(bestPantsItem)
-                    end)
+                local equippedWeapon, equippedWeaponPower, equippedWeaponInfo = getEquippedItemAndPower("Right")
+                local bestWeaponItem, bestWeaponPower, bestWeaponInfo = findBestInInventory("Weapon", nil, equippedWeapon)
+                
+                if bestWeaponItem and bestWeaponPower > equippedWeaponPower then
+                    equipWeapon(bestWeaponItem, equippedWeaponInfo, bestWeaponInfo)
                 end
+
+                local equippedShirt, equippedShirtPower, equippedShirtInfo = getEquippedItemAndPower("Shirt", "Shirt")
+                local bestShirtItem, bestShirtPower, bestShirtInfo = findBestInInventory("Armor", "Shirt", equippedShirt)
+                
+                if bestShirtItem and bestShirtPower > equippedShirtPower then
+                    equipArmor(bestShirtItem, equippedShirtInfo, bestShirtInfo)
+                end
+
+                local equippedPants, equippedPantsPower, equippedPantsInfo = getEquippedItemAndPower("Pants", "Pants")
+                local bestPantsItem, bestPantsPower, bestPantsInfo = findBestInInventory("Armor", "Pants", equippedPants)
+                
+                if bestPantsItem and bestPantsPower > equippedPantsPower then
+                    equipArmor(bestPantsItem, equippedPantsInfo, bestPantsInfo)
+                end
+
+                --[[
+                local equippedHelmet, equippedHelmetPower = getEquippedItemAndPower("Helmet", "Helmet")
+                local bestHelmetItem, bestHelmetPower = findBestInInventory("Armor", "Helmet", equippedHelmet)
+                
+                if bestHelmetItem and bestHelmetPower > equippedHelmetPower then
+                    equipArmor(bestHelmetItem)
+                end
+                
+                local equippedGloves, equippedGlovesPower = getEquippedItemAndPower("Gloves", "Gloves")
+                local bestGlovesItem, bestGlovesPower = findBestInInventory("Armor", "Gloves", equippedGloves)
+                
+                if bestGlovesItem and bestGlovesPower > equippedGlovesPower then
+                    equipArmor(bestGlovesItem)
+                end
+                
+                local equippedBoots, equippedBootsPower = getEquippedItemAndPower("Boots", "Boots")
+                local bestBootsItem, bestBootsPower = findBestInInventory("Armor", "Boots", equippedBoots)
+                
+                if bestBootsItem and bestBootsPower > equippedBootsPower then
+                    equipArmor(bestBootsItem)
+                end
+                ]]
             end
         end
         task.wait(1)
     end
-end)
+end), "AutoEquipLoop")
 
 
 local rarityList = {"Common", "Uncommon", "Rare", "Epic", "Legendary"}
@@ -1369,11 +1984,9 @@ local rarityIndexMap = {Common=1, Uncommon=2, Rare=3, Epic=4, Legendary=5}
 local autoSellEnabled = false
 local selectedRarity = "Common"
 
-
-
 local AutoSellToggle = FeaturesBox:AddToggle("AutoSell", {
     Text = "Auto Sell",
-     Default = config.autoSellEnabled,
+    Default = config.autoSellEnabled,
     Tooltip = "Automatically sells items of selected rarity and below (except skills)",
     Callback = function(Value)
         autoSellEnabled = Value
@@ -1382,7 +1995,6 @@ local AutoSellToggle = FeaturesBox:AddToggle("AutoSell", {
         Library:Notify({Title = "Auto Sell", Description = Value and "Enabled" or "Disabled", Time = 2})
     end
 })
-
 local AutoSellRarityDropdown = FeaturesBox:AddDropdown("AutoSellRarity", {
     Text = "Auto Sell Rarity",
     Values = rarityList,
@@ -1395,8 +2007,6 @@ local AutoSellRarityDropdown = FeaturesBox:AddDropdown("AutoSellRarity", {
     end
 })
 
-
--- Restore state from config
 if config.autoSellRarity then
     AutoSellRarityDropdown:SetValue(config.autoSellRarity)
     selectedRarity = config.autoSellRarity
@@ -1407,7 +2017,7 @@ if config.autoSellEnabled ~= nil then
 end
 
 -- Auto Sell logic
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if autoSellEnabled then
             local profile = nil
@@ -1445,15 +2055,12 @@ task.spawn(function()
         end
         task.wait(1)
     end
-end)
-
--- Add Dungeon tab and groupboxes
+end), "AutoSellLoop")
 
 local NormalDungeonBox = DungeonTab:AddLeftGroupbox("Normal Dungeon")
 local RaidDungeonBox = DungeonTab:AddRightGroupbox("Raid Dungeon")
 local EventDungeonBox = DungeonTab:AddLeftGroupbox("Event Dungeon")
 
--- Dungeon name display-to-code mapping
 local normalDungeonNameMap = {
     ["Shattered Forest lvl 1+"] = "ForestDungeon",
     ["Orion's Peak lvl 15+"] = "MountainDungeon",
@@ -1477,7 +2084,6 @@ local eventDungeonNameMap = {
     ["Christmas Dungeon"] = "ChristmasDungeon"
 }
 
--- Normal Dungeon variables and UI
 local normalDungeonName = "Shattered Forest lvl 1+"
 local normalDungeonPlayerLimit = 1
 local normalDungeonDifficulty = "Normal"
@@ -1542,23 +2148,19 @@ NormalDungeonBox:AddButton({
     Func = function()
         local difficultyIndexMap = {Normal=1, Medium=2, Hard=3, Insane=4, Extreme=5}
         local args = {
-            [1] = normalDungeonNameMap[normalDungeonName] or "ForestDungeon",
-            [2] = difficultyIndexMap[normalDungeonDifficulty] or 1,
-            [3] = normalDungeonPlayerLimit,
+            [1] = normalDungeonNameMap[config.normalDungeonName or normalDungeonName] or "ForestDungeon",
+            [2] = difficultyIndexMap[config.normalDungeonDifficulty or normalDungeonDifficulty] or 1,
+            [3] = config.normalDungeonPlayerLimit or normalDungeonPlayerLimit,
             [4] = false,
-            [5] = false
+            [5] = true
         }
         lastDungeonArgs = args
-        local success, err = pcall(function()
+        pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Parties", 9e9):WaitForChild("SetSettings", 9e9):FireServer(unpack(args))
         end)
-        if not success then
-            warn("[Start Normal Dungeon] Error:", err)
-        end
     end
 })
 
--- Raid Dungeon variables and UI
 local raidDungeonName = "Abyssal Depths"
 local raidDungeonPlayerLimit = 7
 local raidDungeonDifficulty = "RAID"
@@ -1599,23 +2201,19 @@ RaidDungeonBox:AddButton({
     Func = function()
         local difficultyIndex = {RAID=7}
         local args = {
-            [1] = raidDungeonNameMap[raidDungeonName] or "AbyssDungeon",
-            [2] = raidDungeonPlayerLimit,
-            [3] = difficultyIndex[raidDungeonDifficulty] or 7,
+            [1] = raidDungeonNameMap[config.raidDungeonName or raidDungeonName] or "AbyssDungeon",
+            [2] = config.raidDungeonPlayerLimit or raidDungeonPlayerLimit,
+            [3] = difficultyIndex[config.raidDungeonDifficulty or raidDungeonDifficulty] or 7,
             [4] = false,
             [5] = false
         }
         lastDungeonArgs = args
-        local success, err = pcall(function()
+        pcall(function()
             game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Parties", 9e9):WaitForChild("SetSettings", 9e9):FireServer(unpack(args))
         end)
-        if not success then
-            warn("[Start Raid Dungeon] Error:", err)
-        end
     end
 })
 
--- Event Dungeon variables and UI
 local eventDungeonName = "Event Dungeon"
 local eventDungeonPlayerLimit = 4
 local eventDungeonDifficulty = "Normal"
@@ -1655,10 +2253,10 @@ EventDungeonBox:AddButton({
     Func = function()
         local difficultyIndexMap = {Normal=1, Hard=3, Insane=4}
         local args = {
-            [1] = eventDungeonNameMap[eventDungeonName] or "Gauntlet",
-            [2] = eventDungeonPlayerLimit,
-            [3] = difficultyIndexMap[eventDungeonDifficulty] or 1,
-            [4] = false
+            [1] = eventDungeonNameMap[config.eventDungeonName or eventDungeonName] or "Gauntlet",
+            [2] = config.eventDungeonPlayerLimit or eventDungeonPlayerLimit,
+            [3] = difficultyIndexMap[config.eventDungeonDifficulty or eventDungeonDifficulty] or 1,
+            [4] = True
         }
         game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Parties", 9e9):WaitForChild("SetSettings", 9e9):FireServer(unpack(args))
     end
@@ -1666,9 +2264,8 @@ EventDungeonBox:AddButton({
 
 local SettingsTabbox = SettingsTab:AddLeftTabbox("Settings")
 local ThemeTab = SettingsTabbox:AddTab("Theme")
-local InfoGroup = SettingsTab:AddLeftGroupbox("Script Information", "info")
+local InfoGroup = SettingsTab:AddRightGroupbox("Script Information", "info")
 
--- FPS Boost Utilities
 local Services = setmetatable({}, {
     __index = function(_, k)
         return game:GetService(k)
@@ -1683,7 +2280,6 @@ local originalFpsParticleStates = {}
 local originalFpsMaterial = {}
 
 local function enableCustomFpsBoost()
-    -- Basic FPS boost: lower quality, remove textures, disable shadows
     pcall(function()
         settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
         settings().Rendering.TextureQuality = Enum.TextureQuality.Level01
@@ -1698,7 +2294,6 @@ local function enableCustomFpsBoost()
 end
 
 local function disableCustomFpsBoost()
-    -- Restore some settings (optional, not all can be restored)
     pcall(function()
         settings().Rendering.QualityLevel = Enum.QualityLevel.Automatic
         settings().Rendering.TextureQuality = Enum.TextureQuality.Automatic
@@ -1714,7 +2309,6 @@ end
 
 function enableMaxFpsBoost()
     enableCustomFpsBoost()
-    -- Disable all shadows, all particles/trails/smokes, and set BasePart.Material to a darker material (e.g., Slate) for less brightness
     for _, obj in ipairs(Services.Workspace:GetDescendants()) do
         if obj and typeof(obj) == "Instance" then
             if obj:IsA("BasePart") and obj.Parent then
@@ -1741,7 +2335,7 @@ function enableMaxFpsBoost()
         end
     end
     if maxFpsBoostConn then maxFpsBoostConn:Disconnect() end
-    maxFpsBoostConn = Services.Workspace.DescendantAdded:Connect(function(obj)
+    maxFpsBoostConn = trackConnection(Services.Workspace.DescendantAdded:Connect(function(obj)
         if obj and typeof(obj) == "Instance" then
             if obj:IsA("BasePart") and obj.Parent then
                 if originalFpsCastShadows[obj] == nil then
@@ -1765,7 +2359,7 @@ function enableMaxFpsBoost()
                 pcall(function() obj.Enabled = false end)
             end
         end
-    end)
+    end), "MaxFpsBoost")
 end
 
 function disableMaxFpsBoost()
@@ -1793,7 +2387,6 @@ end
 
 function enableSuperMaxFpsBoost()
     enableMaxFpsBoost()
-    -- Set all BaseParts (except player's character and except whitelisted folders) to Transparency = 1, disable SurfaceGuis, BillboardGuis, Adornments
     local playerChar = PlayerData.player and PlayerData.player.Character
     local whitelist = {
         "Mobs", "QuestNPCs", "Ores", "MobPortals", "FishingSpots", "Dungeon", "Drops", "CraftingStations", "Characters", "BossRoom", "BossArenas"
@@ -1830,7 +2423,7 @@ function enableSuperMaxFpsBoost()
         end
     end
     if superMaxFpsBoostConn then superMaxFpsBoostConn:Disconnect() end
-    superMaxFpsBoostConn = Services.Workspace.DescendantAdded:Connect(function(obj)
+    superMaxFpsBoostConn = trackConnection(Services.Workspace.DescendantAdded:Connect(function(obj)
         if obj and typeof(obj) == "Instance" then
             if obj:IsA("BasePart") and obj.Parent and (not playerChar or not obj:IsDescendantOf(playerChar)) then
                 if not isWhitelisted(obj) then
@@ -1846,7 +2439,7 @@ function enableSuperMaxFpsBoost()
                 pcall(function() obj.Enabled = false end)
             end
         end
-    end)
+    end), "SuperMaxFpsBoost")
 end
 
 function disableSuperMaxFpsBoost()
@@ -1860,7 +2453,6 @@ function disableSuperMaxFpsBoost()
     if superMaxFpsBoostConn then superMaxFpsBoostConn:Disconnect() superMaxFpsBoostConn = nil end
 end
 
--- Place the config FPS boost block here!
 if config.supermaxfpsBoostenabled then
     enableSuperMaxFpsBoost()
 elseif config.maxfpsBoostenabled then
@@ -1925,80 +2517,225 @@ local SuperMaxFpsBoostToggle = ThemeTab:AddToggle("SuperMaxFpsBoost", {
     end
 })
 
--- Move Unload UI button to ThemeTab in Settings
-ThemeTab:AddButton({
-    Text = "Unload UI",
+local CustomCursorToggle = ThemeTab:AddToggle("CustomCursor", {
+    Text = "Custom Cursor",
+    Default = config.customCursorEnabled or true,
+    Tooltip = "Enable/disable the custom cursor",
+    Callback = function(Value)
+        Library.ShowCustomCursor = Value
+        config.customCursorEnabled = Value
+        saveConfig()
+    end
+})
+
+
+InfoGroup:AddLabel("Script by: Seisen")
+InfoGroup:AddLabel("Version: 1.0.5")
+InfoGroup:AddLabel("Game: Dungeon Heroes")
+
+InfoGroup:AddButton({
+    Text = "Join Discord",
     Func = function()
-        -- Destroy all UI created by this script (Obsidian/Library UI)
-        local playerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
-        if playerGui then
-            for _, gui in ipairs(playerGui:GetChildren()) do
-                if gui:IsA("ScreenGui") and (
-                    gui.Name:lower():find("obsidian") or
-                    gui.Name:lower():find("dungeonheroes") or
-                    gui.Name:lower():find("dungeon_heroes") or
-                    gui.Name:lower():find("dhui")
-                ) then
-                    pcall(function() gui:Destroy() end)
-                end
-            end
-        end
+        setclipboard("https://discord.gg/F4sAf6z8Ph")
+        print("Copied Discord Invite!")
+        Library:Notify({Title = "Discord", Description = "Discord invite link copied to clipboard!", Time = 3})
+    end
+})
 
-        -- Attempt to call Library.Unload if it exists
-        if Library and Library.Unload then pcall(function() Library:Unload() end) end
 
-        -- Disconnect all running connections and tasks
-        if noclipConnection then pcall(function() noclipConnection:Disconnect() end) noclipConnection = nil end
-
-        -- Stop all task.spawn loops by setting flags to false
-        _G.killAuraEnabled = false
-        if RuntimeState then
-            RuntimeState.autoSkillEnabled = false
-            RuntimeState.skillToggles = {}
-        end
-        autoFarmEnabled = false
-        autoStartDungeon = false
-        autoReplyDungeon = false
-        autoNextDungeon = false
-        autoClaimDailyQuest = false
-        autoEquipHighestWeapon = false
-
-        -- Remove all global variables and environment variables (if possible)
-        if getfenv then
-            local env = getfenv(1)
-            for k in pairs(env) do
-                if k ~= "_G" and k ~= "script" then
-                    env[k] = nil
-                end
-            end
-        end
-
-        -- Attempt to destroy any leftover BodyVelocity
+InfoGroup:AddButton({
+    Text = "Open Gem Crafting",
+    Func = function()
         pcall(function()
-            if Character and Character:FindFirstChild("HumanoidRootPart") then
-                for _, obj in ipairs(Character.HumanoidRootPart:GetChildren()) do
-                    if obj:IsA("BodyVelocity") then
-                        obj:Destroy()
-                    end
+            local guiSystem = require(game:GetService("ReplicatedStorage").Systems.Gui)
+            local gemCraftingGui = guiSystem:Get("GemCrafting")
+            if gemCraftingGui and gemCraftingGui.Open then
+                gemCraftingGui:Open()
+                Library:Notify({Title = "Gem Crafting", Description = "Gem Crafting opened!", Time = 2})
+            else
+                -- Fallback method
+                local gemCrafting = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("GemCrafting")
+                if gemCrafting then
+                    gemCrafting.Enabled = true
+                    Library:Notify({Title = "Gem Crafting", Description = "Gem Crafting enabled!", Time = 2})
+                else
+                    Library:Notify({Title = "Gem Crafting", Description = "Gem Crafting not available!", Time = 2})
                 end
             end
         end)
+    end
+})
 
-        -- Optionally: clear _G table of script-related keys
-        for k in pairs(_G) do
-            if tostring(k):lower():find("killaura") or tostring(k):lower():find("autoskill") or tostring(k):lower():find("autofarm") then
-                _G[k] = nil
+InfoGroup:AddButton({
+    Text = "Open Item Sell",
+    Func = function()
+        pcall(function()
+            local guiSystem = require(game:GetService("ReplicatedStorage").Systems.Gui)
+            local itemSellGui = guiSystem:Get("ItemSell")
+            if itemSellGui and itemSellGui.Open then
+                itemSellGui:Open()
+                Library:Notify({Title = "Item Sell", Description = "Item Sell opened!", Time = 2})
+            else
+                -- Fallback method
+                local itemSell = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ItemSell")
+                if itemSell then
+                    itemSell.Enabled = true
+                    Library:Notify({Title = "Item Sell", Description = "Item Sell enabled!", Time = 2})
+                else
+                    Library:Notify({Title = "Item Sell", Description = "Item Sell not available!", Time = 2})
+                end
+            end
+        end)
+    end
+})
+
+InfoGroup:AddButton({
+    Text = "Open Manage Pets",
+    Func = function()
+        pcall(function()
+            local guiSystem = require(game:GetService("ReplicatedStorage").Systems.Gui)
+            local managePetsGui = guiSystem:Get("ManagePets")
+            if managePetsGui and managePetsGui.Open then
+                managePetsGui:Open()
+                Library:Notify({Title = "Manage Pets", Description = "Manage Pets opened!", Time = 2})
+            else
+                -- Fallback method
+                local managePets = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ManagePets")
+                if managePets then
+                    managePets.Enabled = true
+                    Library:Notify({Title = "Manage Pets", Description = "Manage Pets enabled!", Time = 2})
+                else
+                    Library:Notify({Title = "Manage Pets", Description = "Manage Pets not available!", Time = 2})
+                end
+            end
+        end)
+    end
+})
+
+InfoGroup:AddButton({
+    Text = "Open Chest Shop",
+    Func = function()
+        pcall(function()
+            local chestShop = game:GetService("Players").LocalPlayer.PlayerGui:FindFirstChild("ChestShop")
+            if chestShop then
+                chestShop.Enabled = true
+                Library:Notify({Title = "Chest Shop", Description = "Chest Shop opened!", Time = 2})
+            else
+                Library:Notify({Title = "Chest Shop", Description = "Chest Shop not available!", Time = 2})
+            end
+        end)
+    end
+})
+
+local function performCompleteCleanup()
+    if _CLEANUP_COMPLETED then return end
+    _CLEANUP_COMPLETED = true
+    
+    for name, connection in pairs(_SCRIPT_CONNECTIONS) do
+        pcall(function()
+            if connection and typeof(connection) == "RBXScriptConnection" then
+                connection:Disconnect()
+            end
+        end)
+    end
+    _SCRIPT_CONNECTIONS = {}
+    
+    local connectionsToClean = {
+        noclipConnection,
+        maxFpsBoostConn,
+        superMaxFpsBoostConn
+    }
+    
+    for _, conn in ipairs(connectionsToClean) do
+        pcall(function()
+            if conn and typeof(conn) == "RBXScriptConnection" then
+                conn:Disconnect()
+            end
+        end)
+    end
+    
+    _G.killAuraEnabled = false
+    if RuntimeState then
+        RuntimeState.autoSkillEnabled = false
+        RuntimeState.skillToggles = {}
+    end
+    autoFarmEnabled = false
+    autoMiniBossEnabled = false
+    autoStartDungeon = false
+    autoReplyDungeon = false
+    autoNextDungeon = false
+    autoClaimDailyQuest = false
+    autoEquipHighestWeapon = false
+    autoSellEnabled = false
+    fpsBoostEnabled = false
+    maxFpsBoostEnabled = false
+    superMaxFpsBoostEnabled = false
+    config.autoMiniBossEnabled = false
+    config.autoFarmEnabled = false
+    config.killAuraEnabled = false
+    config.autoSkillEnabled = false
+    
+    pcall(function()
+        if Character and Character:FindFirstChild("HumanoidRootPart") then
+            for _, obj in ipairs(Character.HumanoidRootPart:GetChildren()) do
+                if obj:IsA("BodyVelocity") then
+                    obj:Destroy()
+                end
             end
         end
-
-        -- Disconnect FPS boost connections and restore settings
-        if maxFpsBoostConn then pcall(function() maxFpsBoostConn:Disconnect() end) maxFpsBoostConn = nil end
-        if superMaxFpsBoostConn then pcall(function() superMaxFpsBoostConn:Disconnect() end) superMaxFpsBoostConn = nil end
-        disableCustomFpsBoost()
-        disableMaxFpsBoost()
-        disableSuperMaxFpsBoost()
-        AntiAfkSystem.cleanup()
+    end)
+    
+    pcall(function()
+        if Character then
+            for _, part in ipairs(Character:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end)
+    
+    disableCustomFpsBoost()
+    disableMaxFpsBoost()
+    disableSuperMaxFpsBoost()
+    
+    if AntiAfkSystem and AntiAfkSystem.cleanup then
+        pcall(function() AntiAfkSystem.cleanup() end)
     end
+    
+    for k in pairs(_G) do
+        if tostring(k):lower():find("killaura") or 
+           tostring(k):lower():find("autoskill") or 
+           tostring(k):lower():find("autofarm") or
+           tostring(k):lower():find("dungeonheroes") then
+            _G[k] = nil
+        end
+    end
+    
+    local playerGui = game:GetService("Players").LocalPlayer:FindFirstChild("PlayerGui")
+    if playerGui then
+        for _, gui in ipairs(playerGui:GetChildren()) do
+            if gui:IsA("ScreenGui") and (
+                gui.Name:lower():find("obsidian") or
+                gui.Name:lower():find("dungeonheroes") or
+                gui.Name:lower():find("dungeon_heroes") or
+                gui.Name:lower():find("dhui") or
+                gui.Name:lower():find("seisen")
+            ) then
+                pcall(function() gui:Destroy() end)
+            end
+        end
+    end
+    
+    if Library and Library.Unload then 
+        pcall(function() Library:Unload() end)
+    end
+end
+
+-- Move Unload UI button to ThemeTab in Settings
+ThemeTab:AddButton({
+    Text = "Unload UI",
+    Func = performCompleteCleanup
 })
 
 -- At the top of the file (after Library is defined)
@@ -2017,80 +2754,100 @@ ThemeTab:AddDropdown("UIScaleDropdown", {
     end
 })
 
-game:GetService("UserInputService").InputEnded:Connect(function(input)
+trackConnection(game:GetService("UserInputService").InputEnded:Connect(function(input)
     if input.UserInputType == Enum.UserInputType.MouseButton1 then
         Library:SetDPIScale(pendingDPIScale)
     end
-end)
+end), "UIScaleInput")
 
-InfoGroup:AddLabel("Script by: Seisen")
-InfoGroup:AddLabel("Version: 1.0.2")
-InfoGroup:AddLabel("Game: Dungeon Heroes")
 
-InfoGroup:AddButton("Join Discord", function()
-    setclipboard("https://discord.gg/F4sAf6z8Ph")
-    print("Copied Discord Invite!")
-end)
 
-ThemeTab:AddLabel("Press Right-Ctrl to toggle the UI")
+ThemeTab:AddLabel("Press Left-Alt to toggle the UI")
 
--- Show the UI
 Library:Toggle(true)
 
---// Kill Aura Configuration
-local attackInterval = 0.35 -- Much slower (very safe)
-local attackRange = 100 -- Increased range for better mob detection
+local attackInterval = 0.5
+local attackRange = 100
+local maxMobsToAttack = 3
+local attackDelayBetweenMobs = 0.05
 local mobIndex = 1
 
---// Kill Aura Loop
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if _G.killAuraEnabled and Character and HRP then
-            -- Find the nearest mob within range
-            local nearestMob = nil
-            local nearestDist = math.huge
+            local mobsInRange = {}
             for _, mob in ipairs(mobFolder:GetChildren()) do
-                if mob:FindFirstChild("HumanoidRootPart") then
+                if mob:FindFirstChild("HumanoidRootPart") and mob:FindFirstChild("Healthbar") then
+                    if mob:FindFirstChild("PetHealthbar") or mob:FindFirstChild("PetIItemRef") then
+                        continue
+                    end
+                    if mob.Name == "TargetDummy" then
+                        continue
+                    end
+                    
                     local mobHRP = mob.HumanoidRootPart
                     local dist = (HRP.Position - mobHRP.Position).Magnitude
-                    if dist <= attackRange and dist < nearestDist then
-                        nearestDist = dist
-                        nearestMob = mob
+                    if dist <= attackRange then
+                        table.insert(mobsInRange, {mob = mob, distance = dist, hrp = mobHRP})
                     end
                 end
             end
-
-            if nearestMob then
-                local mobHRP = nearestMob:FindFirstChild("HumanoidRootPart")
-                if mobHRP then
+            
+            -- Sort mobs by distance (closest first)
+            table.sort(mobsInRange, function(a, b)
+                return a.distance < b.distance
+            end)
+            
+            -- Attack multiple mobs (up to maxMobsToAttack)
+            local mobsAttacked = 0
+            for _, mobData in ipairs(mobsInRange) do
+                if mobsAttacked >= maxMobsToAttack then
+                    break
+                end
+                
+                local mob = mobData.mob
+                local mobHRP = mobData.hrp
+                
+                -- Verify mob still exists and has healthbar
+                if mob and mob.Parent and mobHRP and mobHRP.Parent and mob:FindFirstChild("Healthbar") then
                     -- DoEffect
                     local effectArgs = {
                         [1] = "SlashHit",
                         [2] = mobHRP.Position,
                         [3] = { mobHRP.CFrame }
                     }
-                    Effects:FireServer(unpack(effectArgs))
+                    pcall(function()
+                        Effects:FireServer(unpack(effectArgs))
+                    end)
 
                     -- PlayerAttack
                     local attackArgs = {
-                        [1] = { nearestMob }
+                        [1] = { mob }
                     }
-                    Combat:FireServer(unpack(attackArgs))
+                    pcall(function()
+                        Combat:FireServer(unpack(attackArgs))
+                    end)
+                    
+                    mobsAttacked = mobsAttacked + 1
+                    
+                    -- Small delay between attacking each mob
+                    if mobsAttacked < maxMobsToAttack and attackDelayBetweenMobs > 0 then
+                        task.wait(attackDelayBetweenMobs)
+                    end
                 end
             end
         end
         
         task.wait(attackInterval)
     end
-end)
+end), "KillAuraLoop")
 
 
 
 --// Auto Start Dungeon Loop
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if autoStartDungeon then
-            -- Try to start the dungeon using the correct remote event
             local success, err = pcall(function()
                 game:GetService("ReplicatedStorage")
                     :WaitForChild("Systems", 9e9)
@@ -2098,13 +2855,10 @@ task.spawn(function()
                     :WaitForChild("TriggerStartDungeon", 9e9)
                     :FireServer()
             end)
-            if not success then
-                warn("[Auto Start Dungeon] Error:", err)
-            end
         end
-        task.wait(0.5) -- Try every 2 seconds
+        task.wait(0.5)
     end
-end)
+end), "AutoStartDungeonLoop")
 
 
 local function getLastRoom()
@@ -2151,7 +2905,7 @@ local function getDungeonKey(entry)
     return tostring(entry.name) .. "_" .. tostring(entry.difficulty)
 end
 
-task.spawn(function()
+trackTask(task.spawn(function()
     while true do
         if autoNextDungeon then
             local nextIndex = nil
@@ -2193,7 +2947,6 @@ task.spawn(function()
             end
 
             print("[AutoNextDungeon] Searching for next uncompleted dungeon...")
-            -- Find the next uncompleted dungeon in the sequence
             local nextIndex = nil
             for i = 1, #dungeonSequence do
                 local idx = ((dungeonSequenceIndex + i - 2) % #dungeonSequence) + 1
@@ -2201,13 +2954,11 @@ task.spawn(function()
                 local key = getDungeonKey(entry)
                 if not completedDungeons[key] then
                     nextIndex = idx
-                    print("[AutoNextDungeon] Next dungeon found:", entry.name, "Difficulty:", entry.difficulty)
                     break
                 end
             end
 
             if not nextIndex then
-                print("[AutoNextDungeon] All dungeons completed. Disabling auto next dungeon.")
                 autoNextDungeon = false
                 config.autoNextDungeon = false
                 saveConfig()
@@ -2217,14 +2968,11 @@ task.spawn(function()
             dungeonSequenceIndex = nextIndex
             local entry = dungeonSequence[dungeonSequenceIndex]
             local key = getDungeonKey(entry)
-
-            -- Wait for boss in last room to be defeated (as before)
             print("[AutoNextDungeon] Waiting for boss in last room...")
             local bossName = nil
             for i = 1, 300 do -- 5 minutes
                 bossName = getLastRoomBossName()
                 if bossName then
-                    print("[AutoNextDungeon] Boss found:", bossName)
                     break
                 end
                 task.wait(1)
@@ -2232,34 +2980,23 @@ task.spawn(function()
 
             if bossName then
                 local appeared = false
-                print("[AutoNextDungeon] Waiting for boss to appear in mobs...")
-                for i = 1, 300 do -- 5 minutes for boss to appear
+                for i = 1, 300 do
                     if bossInMobs(bossName) then
                         appeared = true
-                        print("[AutoNextDungeon] Boss appeared in mobs:", bossName)
                         break
                     end
                     task.wait(1)
                 end
                 if appeared then
-                    print("[AutoNextDungeon] Waiting for boss to be defeated...")
-                    for i = 1, 60 do -- 5 minutes for boss to be defeated
+                    for i = 1, 60 do
                         if not bossInMobs(bossName) then
-                            print("[AutoNextDungeon] Boss defeated:", bossName)
                             break
                         end
                         task.wait(1)
                     end
                     task.wait(math.random(2,4))
-                else
-                    print("[AutoNextDungeon] Boss did not appear in mobs in time.")
                 end
-            else
-                print("[AutoNextDungeon] Boss not found in last room.")
             end
-
-            -- Start next dungeon in sequence
-            print("[AutoNextDungeon] Starting next dungeon:", entry.name, "Difficulty:", entry.difficulty)
             local args = {
                 [1] = entry.name,
                 [2] = entry.difficulty,
@@ -2274,14 +3011,9 @@ task.spawn(function()
             pcall(function()
                 game:GetService("ReplicatedStorage"):WaitForChild("Systems", 9e9):WaitForChild("Dungeons", 9e9):WaitForChild("TriggerStartDungeon", 9e9):FireServer()
             end)
-
-            -- Mark as completed and save
-            print("[AutoNextDungeon] Marking dungeon as completed:", key)
             completedDungeons[key] = true
             config.completedDungeons = completedDungeons
             saveConfig()
-
-            -- Move to next in sequence for next loop
             dungeonSequenceIndex = dungeonSequenceIndex + 1
             if dungeonSequenceIndex > #dungeonSequence then
                 dungeonSequenceIndex = 1
@@ -2289,7 +3021,7 @@ task.spawn(function()
         end
         task.wait(2)
     end
-end)
+end), "AutoNextDungeonLoop")
 
 
 -- Load config if file exists
@@ -2314,6 +3046,7 @@ AutoSkillToggle:SetValue(config.autoSkillEnabled)
 AutoStartDungeonToggle:SetValue(config.autoStartDungeon)
 AutoNextDungeonToggle:SetValue(config.autoNextDungeon)
 AutoFarmToggle:SetValue(config.autoFarmEnabled)
+AutoMiniBossToggle:SetValue(config.autoMiniBossEnabled)
 FpsBoostToggle:SetValue(config.fpsBoostEnabled)
 MaxFpsBoostToggle:SetValue(config.maxFpsBoostEnabled)
 SuperMaxFpsBoostToggle:SetValue(config.supermaxfpsBoostenabled)
@@ -2322,5 +3055,5 @@ AutoClaimDailyQuestToggle:SetValue(config.autoClaimDailyQuest)
 AutoEquipHighestWeaponToggle:SetValue(config.autoEquipHighestWeapon)
 AutoFarmHeightSlider:SetValue(config.autoFarmHeight or autoFarmHeight)
 AutoSellToggle:SetValue(config.autoSellEnabled)
-
 AutoSellRarityDropdown:SetValue(config.autoSellRarity or selectedRarity)
+CustomCursorToggle:SetValue(config.customCursorEnabled)
