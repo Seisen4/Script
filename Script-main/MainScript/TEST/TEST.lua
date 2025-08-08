@@ -480,7 +480,7 @@ local function startAutoQuests()
                 pcall(function()
                     ToServer:FireServer(unpack(argsAccept))
                 end)
-                task.wait(0.05)
+                task.wait(0.2)
                 local argsComplete = {
                     [1] = {
                         ["Id"] = tostring(questId),
@@ -491,7 +491,7 @@ local function startAutoQuests()
                 pcall(function()
                     ToServer:FireServer(unpack(argsComplete))
                 end)
-                task.wait(0.05)
+                task.wait(0.2)
             end
             task.wait(2)
         end
@@ -938,10 +938,11 @@ local function startAutoUpgrade()
                             }
                         }
                         ToServer:FireServer(unpack(args))
+                        task.wait(0.1) -- Small delay between each upgrade
                     end
                 end
             end)
-            task.wait(0.5)
+            task.wait(1.5) -- Increased main delay
         end
     end)
 end
@@ -1406,9 +1407,9 @@ function startAutoObelisk()
                         Upgrade_Name = obeliskType
                     })
                 end)
-                task.wait(0.2)
+                task.wait(0.5) -- Increased delay between obelisk upgrades
             end
-            task.wait(1)
+            task.wait(2) -- Increased main loop delay
         end
     end)
 end
@@ -1652,6 +1653,7 @@ function startAutoDeleteGacha()
                     pcall(function()
                         game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(args))
                     end)
+                    task.wait(0.1) -- Small delay between gacha deletions
                 end
             end
             task.wait(2)
@@ -2393,11 +2395,6 @@ UnloadGroupbox:AddToggle("DisableNotificationsToggle", {
         saveConfig()
     end
 })
-
-
-
-
-
 
 UnloadGroupbox:AddToggle("FPSBoostToggle", {
     Text = "FPS Boost (Lower Graphics)",
