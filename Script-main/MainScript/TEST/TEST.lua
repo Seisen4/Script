@@ -216,6 +216,7 @@ autoMonarchProgressionUpgradeEnabled = config.AutoMonarchProgressionUpgradeToggl
 fpsBoostEnabled = config.FPSBoostToggle or false
 autoRollDemonArtsEnabled = config.AutoRollDemonArtsToggle or false
 autoRollSoloHunterRankEnabled = config.AutoRollSoloHunterRankToggle or false
+autoRollGrimoireEnabled = config.AutoRollGrimoireToggle or false
 selectedGachaRarities = config.AutoDeleteGachaRaritiesDropdown or {}
 
 -- Helper to save config
@@ -1607,6 +1608,38 @@ local function startAutoRollSoloHunterRank()
     end)
 end
 
+local function startAutoRollGrimoire()
+    task.spawn(function()
+        -- Unlock Grimoire first (only once)
+        local unlockArgs = {
+            [1] = {
+                ["Upgrading_Name"] = "Unlock",
+                ["Action"] = "_Upgrades",
+                ["Upgrade_Name"] = "Grimoire_Unlock",
+            }
+        }
+        pcall(function()
+            game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(unlockArgs))
+        end)
+        -- Wait to ensure unlock is processed
+        task.wait(2)
+        -- Now keep rolling while enabled
+        while autoRollGrimoireEnabled and getgenv().SeisenHubRunning do
+            local rollArgs = {
+                [1] = {
+                    ["Open_Amount"] = 1,
+                    ["Action"] = "_Gacha_Activate",
+                    ["Name"] = "Grimoire",
+                }
+            }
+            pcall(function()
+                game:GetService("ReplicatedStorage"):WaitForChild("Events", 9e9):WaitForChild("To_Server", 9e9):FireServer(unpack(rollArgs))
+            end)
+            task.wait(1)
+        end
+    end)
+end
+
 
 
 local redeemCodes = {
@@ -1700,6 +1733,7 @@ if autoRollCursesEnabled then startAutoRollCurses() end
 if autoObeliskEnabled then startAutoObelisk() end
 if autoRollDemonArtsEnabled then startAutoRollDemonArts() end
 if autoRollSoloHunterRankEnabled then startAutoRollSoloHunterRank() end
+if autoRollGrimoireEnabled then startAutoRollGrimoire() end
 if fpsBoostEnabled then applyFPSBoostState() end
 if config.AutoDeleteGachaUnitsToggle then startAutoDeleteGacha() end
 
@@ -1989,6 +2023,17 @@ RollGroupbox2:AddToggle("AutoRollSoloHunterRankToggle", {
         autoRollSoloHunterRankEnabled = Value
         config.AutoRollSoloHunterRankToggle = Value
         if Value then startAutoRollSoloHunterRank() end
+        saveConfig()
+    end
+})
+
+RollGroupbox2:AddToggle("AutoRollGrimoireToggle", {
+    Text = "Auto Roll Grimoire",
+    Default = autoRollGrimoireEnabled,
+    Callback = function(Value)
+        autoRollGrimoireEnabled = Value
+        config.AutoRollGrimoireToggle = Value
+        if Value then startAutoRollGrimoire() end
         saveConfig()
     end
 })
@@ -2458,6 +2503,7 @@ UnloadGroupbox:AddButton("Unload Seisen Hub", function()
     selectedGachaRarities = false
     autoRollDemonArtsEnabled = false
     autoRollSoloHunterRankEnabled = false
+    autoRollGrimoireEnabled = false
 
     
     local argsOff = {
