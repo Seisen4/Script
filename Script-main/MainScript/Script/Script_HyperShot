@@ -25,7 +25,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local SaveFolder = "SeisenHub"
 local SaveFile = SaveFolder .. "/seisen_hub_HS.txt"
 if not isfolder(SaveFolder) then makefolder(SaveFolder) end
-_G.AimbotFOV = 15
+_G.AimbotFOV = 10 -- adjust this (in pixels) to change FOV radius
 
 getgenv().HypershotConfig = getgenv().HypershotConfig or {}
 local config = getgenv().HypershotConfig
@@ -34,46 +34,29 @@ local autoPlaytimeLoop = false
 local autoPickUpHealLoop = false
 local autoPickUpCoinsLoop = false
 local espLoop = false
+local espOnlyLoop = false
 local aimbotLoop = false
 local headLockLoop = false
 local rapidFireLoop = false
 local autoPickUpWeaponsLoop = false
+local selectedWeaponName = false
 local autoOpenChestLoop = false
-local autoSpinLoop = false
+local autoSpinLoop = false -- Added for auto spin
 
-local function saveConfig()
-    local success, err = pcall(function()
-        writefile(SaveFile, HttpService:JSONEncode(config))
-        print("Config saved:", HttpService:JSONEncode(config))
-    end)
-    if not success then
-        warn("Failed to save config:", err)
-    end
-end
-
+local function saveConfig() writefile(SaveFile, HttpService:JSONEncode(config)) end
 local function loadConfig()
     if isfile(SaveFile) then
-        local success, data = pcall(function()
-            return HttpService:JSONDecode(readfile(SaveFile))
-        end)
-        if success and type(data) == "table" then
-            for k, v in pairs(data) do
-                config[k] = v
-            end
-            print("Config loaded:", HttpService:JSONEncode(config))
-        else
-            warn("Failed to load config:", data or "No data")
-        end
-    else
-        print("No config file found, using defaults")
+        local success, data = pcall(function() return HttpService:JSONDecode(readfile(SaveFile)) end)
+        if success and type(data) == "table" then for k, v in pairs(data) do config[k] = v end end
     end
 end
 loadConfig()
 
+-- Drawing API FOV Circle
 local FOVCircle = Drawing.new("Circle")
 FOVCircle.Thickness = 2
 FOVCircle.NumSides = 64
-FOVCircle.Radius = config.AimbotFOV or _G.AimbotFOV
+FOVCircle.Radius = _G.AimbotFOV
 FOVCircle.Color = Color3.fromRGB(0, 255, 0)
 FOVCircle.Filled = false
 FOVCircle.Transparency = 1
@@ -84,15 +67,17 @@ config.AutoSpawn = config.AutoSpawn or false
 config.AutoPlaytime = config.AutoPlaytime or false
 config.AutoPickUpHeal = config.AutoPickUpHeal or false
 config.ESPChams = config.ESPChams or false
+config.ESPOnly = config.ESPOnly or false
 config.Aimbot = config.Aimbot or false
 config.HeadLock = config.HeadLock or false
-config.AimbotFOV = config.AimbotFOV or 15
+config.AimbotFOV = config.AimbotFOV or 10
 config.RapidFire = config.RapidFire or false
 config.AutoPickUpWeapons = config.AutoPickUpWeapons or false
 config.AutoPickUpCoins = config.AutoPickUpCoins or false
+config.SelectedWeaponName = config.SelectedWeaponName or "All"
 config.SelectedChest = config.SelectedChest or "Wooden"
 config.AutoOpenChest = config.AutoOpenChest or false
-config.AutoSpin = config.AutoSpin or false
+config.AutoSpin = config.AutoSpin or false -- Added for auto spin
 
 local LocalPlayer = Players.LocalPlayer
 local Camera = Workspace.CurrentCamera
@@ -116,6 +101,7 @@ local function enableHeadLock()
                     head.CFrame = Camera.CFrame + Camera.CFrame.LookVector * 5
                 end
             end
+
             for _, v in Players:GetPlayers() do
                 if v == LocalPlayer then
                     continue
@@ -141,6 +127,7 @@ local function disableHeadLock()
     end
 end
 
+-- ESP + CHAMS Logic
 _G.HeadSize = 10
 _G.Disabled = config.ESPChams
 
@@ -187,6 +174,7 @@ local function enableESP()
                     end)
                 end
             end
+
             if MobsFolder then
                 for _, mob in MobsFolder:GetChildren() do
                     if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
@@ -195,6 +183,37 @@ local function enableESP()
                             local mobTeam = mob:GetAttribute("Team")
                             local isEnemy = (localTeam and mobTeam) and localTeam ~= mobTeam and localTeam ~= -1
                             applyPropertiesToPart(mob.HumanoidRootPart, isEnemy)
+                            applyHighlight(mob, isEnemy)
+                        end)
+                    end
+                end
+            end
+        end
+    end)
+end
+
+local espOnlyConnection
+local function enableESPOnly()
+    espOnlyConnection = RunService.RenderStepped:Connect(function()
+        if espOnlyLoop then
+            for _, player in Players:GetPlayers() do
+                if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                    pcall(function()
+                        local localTeam = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")
+                        local playerTeam = player.Character and player.Character:GetAttribute("Team")
+                        local isEnemy = (localTeam and playerTeam) and localTeam ~= playerTeam and localTeam ~= -1
+                        applyHighlight(player.Character, isEnemy)
+                    end)
+                end
+            end
+
+            if MobsFolder then
+                for _, mob in MobsFolder:GetChildren() do
+                    if mob:IsA("Model") and mob:FindFirstChild("HumanoidRootPart") then
+                        pcall(function()
+                            local localTeam = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")
+                            local mobTeam = mob:GetAttribute("Team")
+                            local isEnemy = (localTeam and mobTeam) and localTeam ~= mobTeam and localTeam ~= -1
                             applyHighlight(mob, isEnemy)
                         end)
                     end
@@ -229,47 +248,97 @@ local function disableESP()
     end
 end
 
+local function disableESPOnly()
+    if espOnlyConnection then
+        espOnlyConnection:Disconnect()
+        espOnlyConnection = nil
+    end
+    for _, player in Players:GetPlayers() do
+        if player.Character then
+            for _, highlight in ipairs(player.Character:GetChildren()) do
+                if highlight:IsA("Highlight") and (highlight.Name == "EnemyHighlight" or highlight.Name == "PlayerOutline") then
+                    highlight:Destroy()
+                end
+            end
+        end
+    end
+    if MobsFolder then
+        for _, mob in MobsFolder:GetChildren() do
+            for _, highlight in ipairs(mob:GetChildren()) do
+                if highlight:IsA("Highlight") and (highlight.Name == "EnemyHighlight" or highlight.Name == "PlayerOutline") then
+                    highlight:Destroy()
+                end
+            end
+        end
+    end
+end
+
+function getClosestTarget()
+	local closestTarget = nil
+	local shortestDistance = math.huge
+	local mouseLocation = UserInputService:GetMouseLocation()
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = player.Character.HumanoidRootPart
+			local screenPos, onScreen = camera:WorldToViewportPoint(hrp.Position)
+			if onScreen then
+				local distance = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(mouseLocation.X, mouseLocation.Y)).Magnitude
+				if distance < (config.AimbotFOV or 10) and distance < shortestDistance then
+					closestTarget = player
+					shortestDistance = distance
+				end
+			end
+		end
+	end
+
+	return closestTarget
+end
+
 function getClosestEnemyHead()
-    local closestHead = nil
-    local shortestDistance = math.huge
-    local mousePos = UserInputService:GetMouseLocation()
-    for _, player in ipairs(Players:GetPlayers()) do
-        if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
-            local head = player.Character.Head
-            local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-            local localTeam = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")
-            local targetTeam = player.Character and player.Character:GetAttribute("Team")
-            local isEnemy = (localTeam and targetTeam) and localTeam ~= targetTeam and localTeam ~= -1
-            if onScreen and isEnemy then
-                local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                if dist < config.AimbotFOV and dist < shortestDistance then
-                    closestHead = head
-                    shortestDistance = dist
-                end
-            else
-                warn("Skipped player:", player.Name, "OnScreen:", onScreen, "IsEnemy:", isEnemy)
-            end
-        end
-    end
-    if not closestHead and MobsFolder then
-        for _, mob in ipairs(MobsFolder:GetChildren()) do
-            if mob:IsA("Model") and mob:FindFirstChild("Head") then
-                local head = mob.Head
-                local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
-                local localTeam = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")
-                local mobTeam = mob:GetAttribute("Team")
-                local isEnemy = (localTeam and mobTeam) and localTeam ~= mobTeam and localTeam ~= -1
-                if onScreen and isEnemy then
-                    local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
-                    if dist < config.AimbotFOV and dist < shortestDistance then
-                        closestHead = head
-                        shortestDistance = dist
-                    end
-                end
-            end
-        end
-    end
-    return closestHead
+	local closestHead = nil
+	local shortestDistance = math.huge
+	local mousePos = UserInputService:GetMouseLocation()
+
+	for _, player in ipairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("Head") then
+			local head = player.Character.Head
+			local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+			local localTeam = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")
+			local targetTeam = player.Character and player.Character:GetAttribute("Team")
+			local isEnemy = (localTeam and targetTeam) and localTeam ~= targetTeam and localTeam ~= -1
+
+			if onScreen and isEnemy then
+				local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+				if dist < config.AimbotFOV and dist < shortestDistance then
+					closestHead = head
+					shortestDistance = dist
+				end
+			end
+		end
+	end
+
+	if not closestHead and MobsFolder then
+		for _, mob in ipairs(MobsFolder:GetChildren()) do
+			if mob:IsA("Model") and mob:FindFirstChild("Head") then
+				local head = mob.Head
+				local screenPos, onScreen = Camera:WorldToViewportPoint(head.Position)
+				local localTeam = LocalPlayer.Character and LocalPlayer.Character:GetAttribute("Team")
+				local mobTeam = mob:GetAttribute("Team")
+				local isEnemy = (localTeam and mobTeam) and localTeam ~= mobTeam and localTeam ~= -1
+
+				if onScreen and isEnemy then
+					local dist = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+					if dist < config.AimbotFOV and dist < shortestDistance then
+						closestHead = head
+						shortestDistance = dist
+					end
+				end
+			end
+		end
+	end
+
+	return closestHead
 end
 
 local aimbotConnection
@@ -282,7 +351,7 @@ local function enableAimbot()
                 local lookAt = targetHead.Position
                 local direction = (lookAt - camPos).Unit
                 local targetCFrame = CFrame.new(camPos, camPos + direction)
-                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.5)
+                Camera.CFrame = Camera.CFrame:Lerp(targetCFrame, 0.9)
             end
         end
     end)
@@ -299,7 +368,9 @@ local function startAutoSpawn()
     autoSpawnLoop = true
     task.spawn(function()
         while autoSpawnLoop do
-            local args = { [1] = false }
+            local args = {
+                [1] = false;
+            }
             game:GetService("ReplicatedStorage"):WaitForChild("Network", 9e9):WaitForChild("Remotes", 9e9):WaitForChild("Spawn", 9e9):FireServer(unpack(args))
             task.wait(1.5)
         end
@@ -386,7 +457,6 @@ local function enableRapidFire()
     end)
 end
 
-local PICKUP_RANGE = 50
 local function startAutoPickUpWeapons()
     autoPickUpWeaponsLoop = true
     task.spawn(function()
@@ -394,16 +464,18 @@ local function startAutoPickUpWeapons()
             local success, err = pcall(function()
                 local weaponFolder = workspace:WaitForChild("IgnoreThese", 9e9)
                     :WaitForChild("Pickups", 9e9):WaitForChild("Weapons", 9e9)
+
                 local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
                 local HumanoidRootPart = character:WaitForChild("HumanoidRootPart")
+
                 for _, weapon in pairs(weaponFolder:GetChildren()) do
-                    if config.SelectedWeaponName == "All" or weapon.Name == config.SelectedWeaponName then
-                        local center = weapon:FindFirstChild("Center")
-                        if center and center:IsA("BasePart") then
-                            local prompt = center:FindFirstChildOfClass("ProximityPrompt")
-                            if prompt then
-                                local distance = (HumanoidRootPart.Position - center.Position).Magnitude
-                                if distance <= PICKUP_RANGE then
+                    local center = weapon:FindFirstChild("Center")
+                    if center and center:IsA("BasePart") then
+                        local prompt = center:FindFirstChildOfClass("ProximityPrompt")
+                        if prompt then
+                            local distance = (HumanoidRootPart.Position - center.Position).Magnitude
+                            if distance <= 25 then
+                                if selectedWeaponName == "All" or string.find(weapon.Name:lower(), selectedWeaponName:lower()) then
                                     fireproximityprompt(prompt)
                                     print("Picked up:", weapon.Name)
                                 end
@@ -424,33 +496,27 @@ local function stopAutoPickUpWeapons()
     autoPickUpWeaponsLoop = false
 end
 
-local MAGNET_RANGE = 50000
-local MOVE_SPEED = 0.5
 local function startAutoPickUpCoins()
     autoPickUpCoinsLoop = true
     task.spawn(function()
+        local player = Players.LocalPlayer
+        local char = player.Character or player.CharacterAdded:Wait()
+        local hrp = char:WaitForChild("HumanoidRootPart")
+        local lootFolder = workspace:WaitForChild("IgnoreThese", 9e9)
+            :WaitForChild("Pickups", 9e9)
+            :WaitForChild("Loot", 9e9)
+
         while autoPickUpCoinsLoop do
-            local success, err = pcall(function()
-                local player = Players.LocalPlayer
-                local char = player.Character or player.CharacterAdded:Wait()
-                local hrp = char:WaitForChild("HumanoidRootPart")
-                local lootFolder = workspace:WaitForChild("IgnoreThese", 9e9)
-                    :WaitForChild("Pickups", 9e9)
-                    :WaitForChild("Loot", 9e9)
-                for _, coin in ipairs(lootFolder:GetChildren()) do
-                    if coin:IsA("BasePart") then
-                        local distance = (coin.Position - hrp.Position).Magnitude
-                        if distance <= MAGNET_RANGE then
-                            coin.CFrame = coin.CFrame:Lerp(
-                                CFrame.new(hrp.Position + Vector3.new(0, 2, 0)),
-                                MOVE_SPEED
-                            )
-                        end
+            for _, coin in ipairs(lootFolder:GetChildren()) do
+                if coin:IsA("BasePart") then
+                    local distance = (coin.Position - hrp.Position).Magnitude
+                    if distance <= 100 then
+                        coin.CFrame = coin.CFrame:Lerp(
+                            CFrame.new(hrp.Position + Vector3.new(0, 2, 0)),
+                            0.5
+                        )
                     end
                 end
-            end)
-            if not success then
-                warn("Auto coin pickup error:", err)
             end
             task.wait(0.05)
         end
@@ -505,7 +571,7 @@ local function startAutoSpin()
             if not success then
                 warn("Failed to spin wheel:", err)
             end
-            task.wait(5)
+            task.wait(5) -- Adjustable delay to avoid rate limits
         end
     end)
 end
@@ -519,10 +585,8 @@ RunService.RenderStepped:Connect(function()
     FOVCircle.Position = Vector2.new(mousePos.X, mousePos.Y)
 end)
 
--- Store toggles for state updates
-local Toggles = {}
-
-Toggles.ESPChams = LeftGroupbox:AddToggle("ESPChams", {
+-- Toggles
+LeftGroupbox:AddToggle("ESPChams", {
     Text = "ESP Chams",
     Default = config.ESPChams,
     Tooltip = "Enable chams + ESP highlights",
@@ -530,12 +594,45 @@ Toggles.ESPChams = LeftGroupbox:AddToggle("ESPChams", {
         config.ESPChams = Value
         espLoop = Value
         _G.Disabled = Value
-        if Value then enableESP() else disableESP() end
+        if Value then 
+            -- Disable ESP Only if ESP Chams is enabled
+            if config.ESPOnly then
+                config.ESPOnly = false
+                espOnlyLoop = false
+                disableESPOnly()
+            end
+            enableESP() 
+        else 
+            disableESP() 
+        end
         saveConfig()
     end
 })
 
-Toggles.Aimbot = LeftGroupbox:AddToggle("Aimbot", {
+LeftGroupbox:AddToggle("ESPOnly", {
+    Text = "ESP Only",
+    Default = config.ESPOnly,
+    Tooltip = "Enable ESP highlights without chams",
+    Callback = function(Value)
+        config.ESPOnly = Value
+        espOnlyLoop = Value
+        if Value then 
+            -- Disable ESP Chams if ESP Only is enabled
+            if config.ESPChams then
+                config.ESPChams = false
+                espLoop = false
+                _G.Disabled = false
+                disableESP()
+            end
+            enableESPOnly() 
+        else 
+            disableESPOnly() 
+        end
+        saveConfig()
+    end
+})
+
+LeftGroupbox:AddToggle("Aimbot", {
     Text = "Aimbot (Head Lock)",
     Default = config.Aimbot,
     Tooltip = "Enable aimbot to lock on head",
@@ -548,35 +645,11 @@ Toggles.Aimbot = LeftGroupbox:AddToggle("Aimbot", {
     end
 })
 
-Toggles.HeadLock = LeftGroupbox:AddToggle("HeadLock", {
-    Text = "Head Lock",
-    Default = config.HeadLock,
-    Tooltip = "Lock enemy and mob heads to camera",
-    Callback = function(Value)
-        config.HeadLock = Value
-        headLockLoop = Value
-        if Value then enableHeadLock() else disableHeadLock() end
-        saveConfig()
-    end
-})
-
-Toggles.RapidFire = LeftGroupbox:AddToggle("RapidFire", {
-    Text = "Rapid Fire",
-    Default = config.RapidFire,
-    Tooltip = "Enables reduced spread and recoil repeatedly",
-    Callback = function(Value)
-        config.RapidFire = Value
-        rapidFireLoop = Value
-        if Value then enableRapidFire() end
-        saveConfig()
-    end
-})
-
-Toggles.AimbotFOVSlider = LeftGroupbox:AddSlider("AimbotFOVSlider", {
+LeftGroupbox:AddSlider("AimbotFOVSlider", {
     Text = "Aimbot FOV",
-    Min = 15,
+    Min = 10,
     Max = 300,
-    Default = config.AimbotFOV or _G.AimbotFOV,
+    Default = _G.AimbotFOV,
     Rounding = 0,
     Compact = false,
     Tooltip = "Limit aimbot to enemies within this radius from cursor (pixels)",
@@ -588,9 +661,33 @@ Toggles.AimbotFOVSlider = LeftGroupbox:AddSlider("AimbotFOVSlider", {
     end
 })
 
-Toggles.AutoSpawn = LeftGroupbox:AddToggle("AutoSpawn", {
+LeftGroupbox:AddToggle("HeadLock", {
+    Text = "Head Lock",
+    Default = config.HeadLock,
+    Tooltip = "Lock enemy and mob heads to camera",
+    Callback = function(Value)
+        config.HeadLock = Value
+        headLockLoop = Value
+        if Value then enableHeadLock() else disableHeadLock() end
+        saveConfig()
+    end
+})
+
+LeftGroupbox:AddToggle("RapidFire", {
+    Text = "Rapid Fire",
+    Default = config.RapidFire,
+    Tooltip = "Enables reduced spread and recoil repeatedly",
+    Callback = function(Value)
+        config.RapidFire = Value
+        rapidFireLoop = Value
+        if Value then enableRapidFire() end
+        saveConfig()
+    end
+})
+
+local AutoSpawnToggle = LeftGroupbox:AddToggle("AutoSpawn", {
     Text = "Auto Spawn",
-    Default = config.AutoSpawn,
+    Default = config.AutoSpawn or false,
     Tooltip = "Automatically respawn when you die",
     Callback = function(Value)
         config.AutoSpawn = Value
@@ -603,9 +700,9 @@ Toggles.AutoSpawn = LeftGroupbox:AddToggle("AutoSpawn", {
     end
 })
 
-Toggles.AutoPlaytime = AddRightGroupbox:AddToggle("AutoPlaytime", {
+local AutoPlaytimeToggle = AddRightGroupbox:AddToggle("AutoPlaytime", {
     Text = "Auto Collect Playtime Award",
-    Default = config.AutoPlaytime,
+    Default = config.AutoPlaytime or false,
     Tooltip = "Automatically collects all playtime rewards",
     Callback = function(Value)
         config.AutoPlaytime = Value
@@ -618,7 +715,7 @@ Toggles.AutoPlaytime = AddRightGroupbox:AddToggle("AutoPlaytime", {
     end
 })
 
-Toggles.AutoPickUpHeal = AddRightGroupbox:AddToggle("AutoPickUpHeal", {
+AddRightGroupbox:AddToggle("AutoPickUpHeal", {
     Text = "Auto Pick Up Heal",
     Default = config.AutoPickUpHeal,
     Tooltip = "Automatically picks up all heals",
@@ -633,9 +730,9 @@ Toggles.AutoPickUpHeal = AddRightGroupbox:AddToggle("AutoPickUpHeal", {
     end
 })
 
-Toggles.AutoPickUpCoins = AddRightGroupbox:AddToggle("AutoPickUpCoins", {
+AddRightGroupbox:AddToggle("AutoPickUpCoins", {
     Text = "Auto Pick Up Coins",
-    Default = config.AutoPickUpCoins,
+    Default = config.AutoPickUpCoins or false,
     Tooltip = "Automatically attracts coins within range",
     Callback = function(Value)
         config.AutoPickUpCoins = Value
@@ -648,7 +745,7 @@ Toggles.AutoPickUpCoins = AddRightGroupbox:AddToggle("AutoPickUpCoins", {
     end
 })
 
-Toggles.AutoOpenChest = AddRightGroupbox:AddToggle("AutoOpenChest", {
+AddRightGroupbox:AddToggle("AutoOpenChest", {
     Text = "Auto Open Chest",
     Default = config.AutoOpenChest,
     Tooltip = "Automatically opens selected chest repeatedly",
@@ -663,7 +760,7 @@ Toggles.AutoOpenChest = AddRightGroupbox:AddToggle("AutoOpenChest", {
     end
 })
 
-Toggles.AutoSpin = AddRightGroupbox:AddToggle("AutoSpin", {
+AddRightGroupbox:AddToggle("AutoSpin", {
     Text = "Auto Spin Wheel",
     Default = config.AutoSpin,
     Tooltip = "Automatically spins the wheel repeatedly",
@@ -678,7 +775,7 @@ Toggles.AutoSpin = AddRightGroupbox:AddToggle("AutoSpin", {
     end
 })
 
-Toggles.ChestSelector = AddRightGroupbox:AddDropdown("ChestSelector", {
+AddRightGroupbox:AddDropdown("ChestSelector", {
     Values = { "Wooden", "Bronze", "Silver", "Gold", "Diamond" },
     Default = config.SelectedChest,
     Multi = false,
@@ -690,7 +787,7 @@ Toggles.ChestSelector = AddRightGroupbox:AddDropdown("ChestSelector", {
     end
 })
 
-Toggles.AutoPickUpWeapons = AddRightGroupbox:AddToggle("AutoPickUpWeapons", {
+AddRightGroupbox:AddToggle("AutoPickUpWeapons", {
     Text = "Auto Pick Up Weapons",
     Default = config.AutoPickUpWeapons,
     Tooltip = "Automatically picks up nearby weapons within range",
@@ -705,52 +802,22 @@ Toggles.AutoPickUpWeapons = AddRightGroupbox:AddToggle("AutoPickUpWeapons", {
     end
 })
 
-Toggles.WeaponSelector = AddRightGroupbox:AddDropdown("WeaponSelector", {
-    Values = { "All", "AK", "M4", "Deagle", "Sniper", "Honey Badger" },
+local selectedWeaponName = config.SelectedWeaponName or "All"
+
+AddRightGroupbox:AddDropdown("WeaponSelector", {
+    Values = { "All", "AK", "M4", "Deagle", "Sniper" },
     Default = config.SelectedWeaponName,
     Multi = false,
     Text = "Weapon Filter",
     Tooltip = "Only pick up this weapon (or All)",
     Callback = function(value)
         config.SelectedWeaponName = value
+        selectedWeaponName = value
         saveConfig()
     end
 })
 
--- Apply loaded config to toggles and initialize features
-task.spawn(function()
-    -- Wait for UI to be fully initialized
-    task.wait(0.5)
-    
-    -- Sync toggle states with loaded config
-    local function setToggle(toggle, value)
-        if toggle.Set then
-            toggle:Set(value)
-        elseif toggle.SetValue then
-            toggle:SetValue(value)
-        else
-            warn("UI library does not support Set or SetValue for toggle:", toggle.Text)
-            -- Fallback: Trigger callback manually
-            toggle.Callback(value)
-        end
-    end
-
-    setToggle(Toggles.ESPChams, config.ESPChams)
-    setToggle(Toggles.Aimbot, config.Aimbot)
-    setToggle(Toggles.HeadLock, config.HeadLock)
-    setToggle(Toggles.RapidFire, config.RapidFire)
-    setToggle(Toggles.AutoSpawn, config.AutoSpawn)
-    setToggle(Toggles.AutoPlaytime, config.AutoPlaytime)
-    setToggle(Toggles.AutoPickUpHeal, config.AutoPickUpHeal)
-    setToggle(Toggles.AutoPickUpCoins, config.AutoPickUpCoins)
-    setToggle(Toggles.AutoOpenChest, config.AutoOpenChest)
-    setToggle(Toggles.AutoSpin, config.AutoSpin)
-    setToggle(Toggles.AutoPickUpWeapons, config.AutoPickUpWeapons)
-    setToggle(Toggles.ChestSelector, config.SelectedChest)
-    setToggle(Toggles.WeaponSelector, config.SelectedWeaponName)
-    setToggle(Toggles.AimbotFOVSlider, config.AimbotFOV or _G.AimbotFOV)
-
-    -- Initialize features based on config
+task.delay(0.5, function()
     if config.AutoSpawn then startAutoSpawn() end
     if config.AutoPlaytime then startAutoPlaytime() end
     if config.AutoPickUpHeal then startAutoPickUpHeal() end
@@ -758,6 +825,10 @@ task.spawn(function()
     if config.ESPChams then
         espLoop = true
         enableESP()
+    end
+    if config.ESPOnly then
+        espOnlyLoop = true
+        enableESPOnly()
     end
     if config.Aimbot then
         aimbotLoop = true
@@ -801,12 +872,13 @@ UISettingsGroupbox:AddButton("Unload Script", function()
     autoPickUpHealLoop = false
     autoPickUpCoinsLoop = false 
     espLoop = false 
+    espOnlyLoop = false
     aimbotLoop = false 
     headLockLoop = false
     rapidFireLoop = false
     autoPickUpWeaponsLoop = false
     autoOpenChestLoop = false
-    autoSpinLoop = false
+    autoSpinLoop = false -- Added for auto spin
 
     if aimbotConnection then
         aimbotConnection:Disconnect()
@@ -814,6 +886,7 @@ UISettingsGroupbox:AddButton("Unload Script", function()
     end
 
     disableESP()
+    disableESPOnly()
     disableHeadLock()
 
     for _, player in Players:GetPlayers() do
@@ -841,69 +914,18 @@ UISettingsGroupbox:AddButton("Unload Script", function()
         FOVCircle:Remove()
     end
 
-    -- Do not clear config or delete file to preserve settings
+    table.clear(config)
+    if isfile(SaveFile) then
+        delfile(SaveFile)
+    end
+
     getgenv().HypershotConfig = nil
     _G.AimbotFOV = nil
     _G.HeadSize = nil
     _G.Disabled = nil
 
-    if Library and Library.Unload then
-        Library:Unload()
-    elseif Library and Library.Gui then
-        Library.Gui:Destroy()
-    end
+    -- Use Obsidian UI Library's proper unload method
+    Library:Unload()
 
     print("✅ Seisen Hub completely unloaded.")
-end)
-
-UISettingsGroupbox:AddButton("Reset Config", function()
-    table.clear(config)
-    if isfile(SaveFile) then
-        delfile(SaveFile)
-        print("Config file deleted")
-    end
-    -- Reset toggles to default (off)
-    local function resetToggle(toggle)
-        if toggle.Set then
-            toggle:Set(false)
-        elseif toggle.SetValue then
-            toggle:SetValue(false)
-        else
-            toggle.Callback(false)
-        end
-    end
-    resetToggle(Toggles.ESPChams)
-    resetToggle(Toggles.Aimbot)
-    resetToggle(Toggles.HeadLock)
-    resetToggle(Toggles.RapidFire)
-    resetToggle(Toggles.AutoSpawn)
-    resetToggle(Toggles.AutoPlaytime)
-    resetToggle(Toggles.AutoPickUpHeal)
-    resetToggle(Toggles.AutoPickUpCoins)
-    resetToggle(Toggles.AutoOpenChest)
-    resetToggle(Toggles.AutoSpin)
-    resetToggle(Toggles.AutoPickUpWeapons)
-    if Toggles.ChestSelector.Set then
-        Toggles.ChestSelector:Set("Wooden")
-    elseif Toggles.ChestSelector.SetValue then
-        Toggles.ChestSelector:SetValue("Wooden")
-    else
-        Toggles.ChestSelector.Callback("Wooden")
-    end
-    if Toggles.WeaponSelector.Set then
-        Toggles.WeaponSelector:Set("All")
-    elseif Toggles.WeaponSelector.SetValue then
-        Toggles.WeaponSelector:SetValue("All")
-    else
-        Toggles.WeaponSelector.Callback("All")
-    end
-    if Toggles.AimbotFOVSlider.Set then
-        Toggles.AimbotFOVSlider:Set(15)
-    elseif Toggles.AimbotFOVSlider.SetValue then
-        Toggles.AimbotFOVSlider:SetValue(15)
-    else
-        Toggles.AimbotFOVSlider.Callback(15)
-    end
-    saveConfig()
-    print("Config reset to defaults")
 end)
